@@ -7,7 +7,7 @@
   },
   "newProjectRoot": "projects",
   "projects": {
-    "food-stand-app": {
+    "san-martino-user-panel": {
       "projectType": "application",
       "schematics": {},
       "root": "",
@@ -63,10 +63,10 @@
           "builder": "@angular/build:dev-server",
           "configurations": {
             "production": {
-              "buildTarget": "food-stand-app:build:production"
+              "buildTarget": "san-martino-user-panel:build:production"
             },
             "development": {
-              "buildTarget": "food-stand-app:build:development"
+              "buildTarget": "san-martino-user-panel:build:development"
             }
           },
           "defaultConfiguration": "development"

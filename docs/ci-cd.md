@@ -1,4 +1,4 @@
-# CI/CD — GitHub Actions (food-stand-app)
+# CI/CD — GitHub Actions (san-martino-user-panel)
 
 > [!IMPORTANT]
 > **Configurazione Obbligatoria per il Deploy Manuale**

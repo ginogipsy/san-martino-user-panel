@@ -1,4 +1,4 @@
-# Food Stand App - Claude Documentation
+# San Martino User Panel - Claude Documentation
 
 ## Project Overview
 Applicazione Web (Angular 21) per la gestione degli stand gastronomici.
