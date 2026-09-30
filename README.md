@@ -1,4 +1,4 @@
-# Food Stand App
+# San Martino User Panel
 
 Applicazione Web Angular per la gestione degli stand della festa "Le Cantine di San Martino".
 

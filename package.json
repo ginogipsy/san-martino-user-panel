@@ -1,5 +1,5 @@
 {
-  "name": "food-stand-app",
+  "name": "san-martino-user-panel",
   "version": "0.0.1",
   "scripts": {
     "ng": "ng",
@@ -7,7 +7,7 @@
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
-    "serve:ssr:food-stand-app": "node dist/food-stand-app/server/server.mjs"
+    "serve:ssr:san-martino-user-panel": "node dist/san-martino-user-panel/server/server.mjs"
   },
   "private": true,
   "packageManager": "npm@11.9.0",
