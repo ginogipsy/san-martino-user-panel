@@ -17,8 +17,8 @@ FROM nginx:alpine
 # Copia la build di Angular nella cartella di default di Nginx
 # Adatta il path se il nome del progetto in angular.json è diverso
 COPY --from=build /app/dist/san-martino-user-panel/browser /usr/share/nginx/html
-# Copia eventuale config nginx personalizzata per gestire il routing SPA
-# COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Config nginx per il routing SPA (fallback su index.csr.html, vedi nginx.conf)
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
