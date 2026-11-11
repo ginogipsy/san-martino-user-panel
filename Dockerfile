@@ -16,10 +16,16 @@ RUN npm run build -- --configuration production
 # avere runAsNonRoot senza capability aggiuntive.
 FROM nginxinc/nginx-unprivileged:1.29-alpine-slim
 
+USER root
+# Rimuove l'index.html di default di Nginx ("Welcome to nginx!") per evitare
+# che mascheri il fallback SPA su index.csr.html
+RUN rm -rf /usr/share/nginx/html/*
+USER 101
+
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 # Solo la parte browser: il server SSR (dist/.../server) non serve, le route
 # sono prerenderizzate o renderizzate lato client (vedi nginx.conf).
-COPY --from=build /app/dist/san-martino-user-panel/browser /usr/share/nginx/html
+COPY --from=build --chown=101:101 /app/dist/san-martino-user-panel/browser /usr/share/nginx/html
 
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=3s CMD wget -qO- http://127.0.0.1:8080/healthz || exit 1
