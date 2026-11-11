@@ -16,29 +16,29 @@ export class Login {
   private authService = inject(Auth);
   private router = inject(Router);
 
-  // Definiamo i campi del form
   loginForm = this.fb.group({
     username: ['', [Validators.required]],
     password: ['', [Validators.required, Validators.minLength(4)]]
   });
 
-  errorMessage: string = '';
+  isLoading = false;
+  errorMessage = '';
 
   onSubmit() {
     if (this.loginForm.valid) {
+      this.isLoading = true;
+      this.errorMessage = '';
+
       this.authService.login(this.loginForm.value).subscribe({
         next: (response) => {
-          console.log('Login effettuato!', response);
-          // Se è admin lo mandiamo alla gestione stand, altrimenti alla home
-          if (this.authService.isAdmin()) {
-            this.router.navigate(['/admin/stands']);
-          } else {
-            this.router.navigate(['/home']);
-          }
+          this.isLoading = false;
+          console.log('Login effettuato con successo tramite Backend Gateway!', response);
+          this.router.navigate(['/admin/stands']);
         },
         error: (err) => {
+          this.isLoading = false;
           this.errorMessage = 'Credenziali errate o server non raggiungibile';
-          console.error(err);
+          console.error('Errore durante il login:', err);
         }
       });
     }
