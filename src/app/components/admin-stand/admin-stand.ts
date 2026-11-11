@@ -12,9 +12,9 @@ import { Auth } from '../../services/auth';
   styleUrl: './admin-stand.css',
 })
 export class AdminStand implements OnInit {
-  private fb = inject(FormBuilder);
-  private foodService = inject(Food);
-  private authService = inject(Auth);
+  private readonly fb = inject(FormBuilder);
+  private readonly foodService = inject(Food);
+  private readonly authService = inject(Auth);
 
   isStandOwner = false;
   userStandId: string | null = null;
@@ -27,9 +27,9 @@ export class AdminStand implements OnInit {
     descriptionIt: ['', Validators.required],
     descriptionEn: ['', Validators.required],
     firstParticipationYear: [new Date().getFullYear(), Validators.required],
-    latitude: [41.590, Validators.required],
-    longitude: [13.570, Validators.required],
-    menu: this.fb.array([])
+    latitude: [41.59, Validators.required],
+    longitude: [13.57, Validators.required],
+    menu: this.fb.array([]),
   });
 
   ngOnInit() {
@@ -44,7 +44,7 @@ export class AdminStand implements OnInit {
   }
 
   get menu() {
-    return this.standForm.controls["menu"] as FormArray;
+    return this.standForm.controls['menu'] as FormArray;
   }
 
   addPiatto() {
@@ -52,9 +52,9 @@ export class AdminStand implements OnInit {
       nomePiatto: ['', Validators.required],
       descrizioneIt: ['', Validators.required],
       descrizioneEn: ['', Validators.required],
-      prezzo: [0, [Validators.required, Validators.min(0.50)]],
+      prezzo: [0, [Validators.required, Validators.min(0.5)]],
       disponibilita: [100, [Validators.required, Validators.min(0)]],
-      tipo: ['FOOD', Validators.required]
+      tipo: ['FOOD', Validators.required],
     });
     this.menu.push(piattoForm);
   }
@@ -73,11 +73,11 @@ export class AdminStand implements OnInit {
         name: rawData.name!,
         description: {
           it: rawData.descriptionIt!,
-          en: rawData.descriptionEn!
+          en: rawData.descriptionEn!,
         },
         firstParticipationYear: rawData.firstParticipationYear!,
         latitude: rawData.latitude!,
-        longitude: rawData.longitude!
+        longitude: rawData.longitude!,
       };
 
       // Mapping verso MenuItemCreate[]
@@ -85,10 +85,10 @@ export class AdminStand implements OnInit {
         name: m.nomePiatto,
         description: {
           it: m.descrizioneIt,
-          en: m.descrizioneEn
+          en: m.descrizioneEn,
         },
         availablePlates: m.disponibilita,
-        kind: m.tipo as 'FOOD' | 'DRINK'
+        kind: m.tipo as 'FOOD' | 'DRINK',
       }));
 
       if (this.isStandOwner && this.userStandId) {
@@ -104,7 +104,7 @@ export class AdminStand implements OnInit {
             this.standForm.reset();
             this.menu.clear();
           },
-          error: (err) => alert('Errore durante il salvataggio. Controlla il Gateway.')
+          error: (err) => alert('Errore durante il salvataggio. Controlla il Gateway.'),
         });
       }
     }

@@ -1,21 +1,46 @@
-<div class="login-container">
-  <h2>Accedi al portale Food</h2>
-  
-  <form [formGroup]="loginForm" (ngSubmit)="onSubmit()">
-    <div class="form-group">
-      <label>Username</label>
-      <input type="text" formControlName="username" placeholder="Inserisci username">
+<div class="login-wrapper">
+  <div class="login-card">
+    <div class="login-header">
+      <h1>Le Cantine di San Martino</h1>
+      <p class="subtitle">Portale di Gestione Stand</p>
     </div>
 
-    <div class="form-group">
-      <label>Password</label>
-      <input type="password" formControlName="password" placeholder="********">
-    </div>
+    <form [formGroup]="loginForm" (ngSubmit)="onSubmit()">
+      <div class="form-group">
+        <label for="username">Username</label>
+        <input
+          id="username"
+          type="text"
+          formControlName="username"
+          placeholder="Inserisci il tuo username"
+          autocomplete="username"
+        >
+      </div>
 
-    <button type="submit" [disabled]="loginForm.invalid">Accedi</button>
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input
+          id="password"
+          type="password"
+          formControlName="password"
+          placeholder="••••••••"
+          autocomplete="current-password"
+        >
+      </div>
 
-    @if (errorMessage) {
-      <p class="error">{{ errorMessage }}</p>
-    }
-  </form>
+      <button type="submit" [disabled]="loginForm.invalid || isLoading" class="btn-submit">
+        @if (isLoading) {
+          <span class="spinner-small"></span> Accesso in corso...
+        } @else {
+          Accedi
+        }
+      </button>
+
+      @if (errorMessage) {
+        <div class="error-banner">
+          {{ errorMessage }}
+        </div>
+      }
+    </form>
+  </div>
 </div>
