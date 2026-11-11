@@ -26,3 +26,14 @@
 | push su `develop` / `feature/*` | ✅ | ✅ | ✋ **Manuale** (Approve) | ❌ |
 | push su `master` | ✅ | ✅ | 🚀 **Automatico** | **Smart Versioning** |
 | push tag `v*` | ✅ | ✅ | 🚀 **Automatico** | ❌ |
+
+## Deploy in Kubernetes
+
+L'immagine del pannello è compilata con NGINX unprivileged (porta `8080`, utente non root `101`) ed è conforme al profilo Pod Security Admission `restricted`.
+
+In Kubernetes, il pannello viene servito dietro l'Ingress Traefik (`k8s/base/ingress.yaml`). Gli URL verso il Gateway backend sono relativi (`/api/auth`, `/v1/stands` in `src/environments/environment.ts`), eliminando la necessità di configurazioni CORS o URL assoluti per ambiente.
+
+Per compilare e testare l'immagine localmente per Kind:
+```bash
+docker build -t san-martino-user-panel:local .
+```
