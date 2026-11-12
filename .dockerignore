@@ -1,0 +1,21 @@
+# Il build context deve contenere solo i sorgenti: node_modules e dist li
+# ricostruisce lo stage di build, e copiarli renderebbe la build lenta e non
+# riproducibile.
+node_modules
+dist
+.angular
+.git
+.github
+.idea
+.vscode
+coverage
+docs
+*.md
+Dockerfile
+.dockerignore
+
+# Mai nel context, anche se un giorno finissero nella cartella.
+.env
+.env.*
+*.pem
+*.key

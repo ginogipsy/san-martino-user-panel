@@ -20,4 +20,4 @@ Per tutte le informazioni su come gestire le versioni, creare release e utilizza
 ## 📖 Documentazione Correlata
 
 - [Dettagli CI/CD](docs/ci-cd.md)
-- [Istruzioni per Agenti (CLAUDE.md)](docs/CLAUDE.md)
+- [Istruzioni per Agenti (CLAUDE.md)](../CLAUDE.md)
