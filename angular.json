@@ -66,7 +66,8 @@
               "buildTarget": "san-martino-user-panel:build:production"
             },
             "development": {
-              "buildTarget": "san-martino-user-panel:build:development"
+              "buildTarget": "san-martino-user-panel:build:development",
+              "proxyConfig": "proxy.conf.json"
             }
           },
           "defaultConfiguration": "development"

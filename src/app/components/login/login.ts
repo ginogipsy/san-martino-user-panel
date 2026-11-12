@@ -12,13 +12,13 @@ import { Router } from '@angular/router';
   styleUrl: './login.css',
 })
 export class Login {
-  private fb = inject(FormBuilder);
-  private authService = inject(Auth);
-  private router = inject(Router);
+  private readonly fb = inject(FormBuilder);
+  private readonly authService = inject(Auth);
+  private readonly router = inject(Router);
 
   loginForm = this.fb.group({
     username: ['', [Validators.required]],
-    password: ['', [Validators.required, Validators.minLength(4)]]
+    password: ['', [Validators.required, Validators.minLength(4)]],
   });
 
   isLoading = false;
@@ -30,16 +30,16 @@ export class Login {
       this.errorMessage = '';
 
       this.authService.login(this.loginForm.value).subscribe({
-        next: (response) => {
+        next: async (response) => {
           this.isLoading = false;
           console.log('Login effettuato con successo tramite Backend Gateway!', response);
-          this.router.navigate(['/admin/stands']);
+          await this.router.navigate(['/admin/stands']);
         },
         error: (err) => {
           this.isLoading = false;
           this.errorMessage = 'Credenziali errate o server non raggiungibile';
           console.error('Errore durante il login:', err);
-        }
+        },
       });
     }
   }
