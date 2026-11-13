@@ -913,3 +913,22 @@ textarea {
   border-radius: 10px;
   margin-bottom: 16px;
 }
+
+.btn-toggle-map {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #0f172a;
+  color: #ffffff;
+  border: none;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.btn-toggle-map:hover {
+  background: #334155;
+}

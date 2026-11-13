@@ -54,7 +54,8 @@ export class AdminStand implements OnInit {
   savingOwner = signal(false);
   feedbackMessage = signal<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // Google Maps state
+  // Google Maps state (caricata solo on-demand quando si apre il box posizione)
+  showLocationEditor = signal(false);
   googleMapsReady = signal(false);
   googleMapsError = signal<string | null>(null);
   apiKeyInput = signal('');
@@ -153,8 +154,15 @@ export class AdminStand implements OnInit {
   });
 
   ngOnInit() {
-    this.initGoogleMapsLoader();
     this.loadStands();
+  }
+
+  toggleLocationEditor() {
+    const next = !this.showLocationEditor();
+    this.showLocationEditor.set(next);
+    if (next && !this.googleMapsReady()) {
+      this.initGoogleMapsLoader();
+    }
   }
 
   private initGoogleMapsLoader() {
@@ -264,6 +272,7 @@ export class AdminStand implements OnInit {
 
   selectStand(standId: string) {
     this.isCreatingStand.set(false);
+    this.showLocationEditor.set(false);
     this.editingMenuItemId.set(null);
     this.foodService.getStand(standId).subscribe({
       next: (detail) => {
