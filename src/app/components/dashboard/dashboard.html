@@ -1,0 +1,108 @@
+<app-navbar></app-navbar>
+
+<main class="dashboard-page">
+  <section class="hero-banner">
+    <div>
+      <h1>Benvenuto, {{ authService.getUsername() }}!</h1>
+      <p>
+        Seleziona l'area operativa dal menu qui sotto. Le sezioni visibili sono abilitate in base
+        ai tuoi ruoli sul portale Le Cantine di San Martino.
+      </p>
+    </div>
+
+    <div class="quick-stats">
+      @if (authService.canManageEvents()) {
+        <div class="stat-box">
+          <span class="stat-value">{{ eventsCount }}</span>
+          <span class="stat-label">Edizioni registrate</span>
+        </div>
+      }
+      @if (authService.canManageStands()) {
+        <div class="stat-box">
+          <span class="stat-value">{{ standsCount }}</span>
+          <span class="stat-label">Cantine a sistema</span>
+        </div>
+      }
+    </div>
+  </section>
+
+  <section class="cards-grid">
+    @if (authService.canManageEvents()) {
+      <article class="menu-card card-events">
+        <div class="card-icon">📅</div>
+        <div class="card-body">
+          <div class="card-header-row">
+            <h2>Gestione Eventi &amp; Saghe</h2>
+            <span class="badge badge-admin">Admin</span>
+          </div>
+          <p>
+            Crea o modifica le edizioni della festa di San Martino, oppure avvia la Saga distribuita
+            per creare un evento associando in blocco le cantine partecipanti.
+          </p>
+          @if (upcomingEventName) {
+            <div class="card-hint">Prossima edizione: <strong>{{ upcomingEventName }}</strong></div>
+          }
+        </div>
+        <div class="card-actions">
+          <a routerLink="/admin/events" class="btn-card btn-primary">Apri Gestione Eventi →</a>
+        </div>
+      </article>
+    }
+
+    @if (authService.canManageStands()) {
+      <article class="menu-card card-stands">
+        <div class="card-icon">🍷</div>
+        <div class="card-body">
+          <div class="card-header-row">
+            <h2>
+              {{
+                authService.isStandOwner() && !authService.isAdmin()
+                  ? 'La Mia Cantina & Menu'
+                  : 'Gestione Cantine, Piatti & Scorte'
+              }}
+            </h2>
+            <span class="badge badge-owner">
+              {{ authService.isAdmin() ? 'Admin / Gestore' : 'Gestore Cantina' }}
+            </span>
+          </div>
+          <p>
+            Crea o modifica i dati della cantina, aggiungi o rimuovi piatti e bevande, imposta le
+            <strong>parole chiave di ricerca</strong> (es. <em>pasta, primo, sugo</em>) e aggiorna
+            in tempo reale le <strong>quantità disponibili</strong>.
+          </p>
+          @if (authService.getStandId()) {
+            <div class="card-hint">
+              Cantina associata: <code>{{ authService.getStandId() }}</code>
+            </div>
+          }
+        </div>
+        <div class="card-actions">
+          <a routerLink="/admin/stands" class="btn-card btn-success">
+            Gestisci Cantine e Piatti →
+          </a>
+        </div>
+      </article>
+    }
+
+    @if (authService.canModerateReviews()) {
+      <article class="menu-card card-moderation">
+        <div class="card-icon">🛡️</div>
+        <div class="card-body">
+          <div class="card-header-row">
+            <h2>Moderazione Recensioni</h2>
+            <span class="badge badge-mod">Moderatore</span>
+          </div>
+          <p>
+            Verifica e modera le recensioni lasciate dagli utenti sull'App Android per piatti,
+            cantine ed edizioni dell'evento.
+          </p>
+        </div>
+        <div class="card-actions">
+          <a routerLink="/admin/moderation" class="btn-card btn-warning">
+            Apri Area Moderazione →
+          </a>
+        </div>
+      </article>
+    }
+  </section>
+</main>

@@ -1,0 +1,200 @@
+<app-navbar></app-navbar>
+
+<div class="page-container">
+  <header class="page-header">
+    <div>
+      <h1>Gestione Eventi &amp; Saghe</h1>
+      <p>Crea o modifica le edizioni della festa oppure avvia una Saga con le cantine partecipanti.</p>
+    </div>
+
+    <div class="tab-switcher">
+      <button
+        type="button"
+        class="tab-btn"
+        [class.active]="activeTab === 'events'"
+        (click)="switchTab('events')"
+      >
+        📅 Gestione Edizioni
+      </button>
+      <button
+        type="button"
+        class="tab-btn"
+        [class.active]="activeTab === 'saga'"
+        (click)="switchTab('saga')"
+      >
+        ⚡ Crea Evento + Cantine (Saga)
+      </button>
+    </div>
+  </header>
+
+  @if (statusMessage) {
+    <div class="banner banner-success">{{ statusMessage }}</div>
+  }
+  @if (errorMessage) {
+    <div class="banner banner-error">{{ errorMessage }}</div>
+  }
+
+  <div class="layout-grid">
+    <!-- Colonna Form -->
+    <section class="panel-card">
+      <div class="panel-header">
+        <h2>
+          @if (activeTab === 'saga') {
+            Avvia Saga: Nuova Edizione + Cantine
+          } @else if (editingEventId) {
+            Modifica Edizione
+          } @else {
+            Nuova Edizione
+          }
+        </h2>
+        @if (editingEventId) {
+          <button type="button" class="btn-secondary btn-sm" (click)="resetForm()">
+            + Nuova Edizione
+          </button>
+        }
+      </div>
+
+      <form [formGroup]="eventForm" (ngSubmit)="activeTab === 'saga' ? onSubmitSaga() : onSubmitEvent()">
+        <div class="form-group">
+          <label for="eventName">Nome Edizione</label>
+          <input id="eventName" type="text" formControlName="name" placeholder="Es. Le cantine di San Martino 2026" />
+        </div>
+
+        <div class="form-group">
+          <label for="eventPlace">Luogo</label>
+          <input id="eventPlace" type="text" formControlName="place" placeholder="Arce (FR) — centro storico" />
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="startDate">Data Inizio</label>
+            <input id="startDate" type="date" formControlName="startDate" />
+          </div>
+          <div class="form-group">
+            <label for="endDate">Data Fine</label>
+            <input id="endDate" type="date" formControlName="endDate" />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="descIt">Descrizione (Italiano)</label>
+          <textarea id="descIt" rows="3" formControlName="descriptionIt" placeholder="Programma e dettagli in italiano..."></textarea>
+        </div>
+
+        <div class="form-group">
+          <label for="descEn">Descrizione (Inglese)</label>
+          <textarea id="descEn" rows="3" formControlName="descriptionEn" placeholder="Programme and details in English..."></textarea>
+        </div>
+
+        @if (activeTab === 'saga') {
+          <div class="stands-picker">
+            <div class="picker-header">
+              <label>Cantine Partecipanti ({{ selectedStandIds.size }} selezionate)</label>
+              <div class="picker-actions">
+                <button type="button" class="btn-link" (click)="selectAllStands()">Tutte</button>
+                <button type="button" class="btn-link" (click)="clearStandSelection()">Nessuna</button>
+              </div>
+            </div>
+
+            <div class="stands-checklist">
+              @for (stand of stands; track stand.id) {
+                <label class="stand-check-item" [class.checked]="selectedStandIds.has(stand.id)">
+                  <input
+                    type="checkbox"
+                    [checked]="selectedStandIds.has(stand.id)"
+                    (change)="toggleStandSelection(stand.id)"
+                  />
+                  <span class="stand-num">#{{ stand.number }}</span>
+                  <span class="stand-name">{{ stand.name }}</span>
+                </label>
+              }
+            </div>
+          </div>
+        }
+
+        <button
+          type="submit"
+          class="btn-primary btn-full"
+          [disabled]="eventForm.invalid || isSubmitting || (activeTab === 'saga' && selectedStandIds.size === 0)"
+        >
+          @if (activeTab === 'saga') {
+            ⚡ Esegui Saga Distribuita ({{ selectedStandIds.size }} cantine)
+          } @else if (editingEventId) {
+            Salva Modifiche Edizione
+          } @else {
+            Crea Edizione
+          }
+        </button>
+      </form>
+    </section>
+
+    <!-- Colonna Lista -->
+    <section class="panel-card">
+      @if (activeTab === 'events') {
+        <div class="panel-header">
+          <h2>Edizioni Registrate ({{ events.length }})</h2>
+        </div>
+
+        <div class="items-list">
+          @for (ev of events; track ev.id) {
+            <article class="list-item" [class.selected]="editingEventId === ev.id">
+              <div class="item-main">
+                <div class="item-title-row">
+                  <strong>{{ ev.name }}</strong>
+                  <span class="status-pill" [attr.data-status]="ev.status">{{ ev.status }}</span>
+                </div>
+                <div class="item-meta">
+                  📍 {{ ev.place }} &bull; 🗓️ {{ ev.startDate }} → {{ ev.endDate }}
+                </div>
+                <p class="item-desc">{{ ev.description.it }}</p>
+              </div>
+
+              <div class="item-actions">
+                <button type="button" class="btn-secondary btn-sm" (click)="selectEventForEdit(ev)">
+                  Modifica
+                </button>
+                <button type="button" class="btn-danger btn-sm" (click)="onDeleteEvent(ev)">
+                  Elimina
+                </button>
+              </div>
+            </article>
+          } @empty {
+            <p class="empty-state">Nessuna edizione presente.</p>
+          }
+        </div>
+      } @else {
+        <div class="panel-header">
+          <h2>Storico Esecuzioni Saga ({{ sagas.length }})</h2>
+        </div>
+
+        <div class="items-list">
+          @for (saga of sagas; track saga.id) {
+            <article class="list-item">
+              <div class="item-main">
+                <div class="item-title-row">
+                  <strong>{{ saga.type }}</strong>
+                  <span class="status-pill" [attr.data-status]="saga.status">{{ saga.status }}</span>
+                </div>
+                <div class="item-meta">
+                  ID: <code>{{ saga.id }}</code> &bull; Cantine: {{ saga.participations.length }}
+                </div>
+                @if (saga.message) {
+                  <p class="item-desc">{{ saga.message }}</p>
+                }
+                <div class="steps-row">
+                  @for (step of saga.steps; track step.stepOrder) {
+                    <span class="step-chip" [attr.data-status]="step.status">
+                      {{ step.stepOrder }}. {{ step.name }} ({{ step.status }})
+                    </span>
+                  }
+                </div>
+              </div>
+            </article>
+          } @empty {
+            <p class="empty-state">Nessuna saga eseguita finora.</p>
+          }
+        </div>
+      }
+    </section>
+  </div>
+</div>

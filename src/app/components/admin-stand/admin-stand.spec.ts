@@ -1,5 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-
+import { provideHttpClient } from '@angular/common/http';
+import { provideRouter } from '@angular/router';
 import { AdminStand } from './admin-stand';
 
 describe('AdminStand', () => {
@@ -9,6 +10,7 @@ describe('AdminStand', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [AdminStand],
+      providers: [provideHttpClient(), provideRouter([])],
     }).compileComponents();
 
     fixture = TestBed.createComponent(AdminStand);
@@ -18,5 +20,14 @@ describe('AdminStand', () => {
 
   it('should create', () => {
     expect(component).toBeTruthy();
+  });
+
+  it('should parse comma-separated keywords accurately', () => {
+    expect(component.parseKeywords('pasta, primo, sugo, guanciale')).toEqual([
+      'pasta',
+      'primo',
+      'sugo',
+      'guanciale',
+    ]);
   });
 });

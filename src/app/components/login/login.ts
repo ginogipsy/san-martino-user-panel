@@ -33,7 +33,7 @@ export class Login {
         next: async (response) => {
           this.isLoading = false;
           console.log('Login effettuato con successo tramite Backend Gateway!', response);
-          await this.router.navigate(['/admin/stands']);
+          await this.router.navigate(['/dashboard']);
         },
         error: (err) => {
           this.isLoading = false;

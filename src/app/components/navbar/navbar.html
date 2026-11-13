@@ -1,0 +1,53 @@
+<header class="topbar">
+  <div class="topbar-inner">
+    <a routerLink="/dashboard" class="brand">
+      <span class="brand-badge">🍷</span>
+      <div>
+        <span class="brand-title">Le Cantine di San Martino</span>
+        <span class="brand-subtitle">Pannello di Controllo</span>
+      </div>
+    </a>
+
+    <nav class="nav-links">
+      <a
+        routerLink="/dashboard"
+        routerLinkActive="active"
+        [routerLinkActiveOptions]="{ exact: true }"
+        class="nav-item"
+      >
+        Menu Principale
+      </a>
+
+      @if (authService.canManageEvents()) {
+        <a routerLink="/admin/events" routerLinkActive="active" class="nav-item">
+          Eventi &amp; Saghe
+        </a>
+      }
+
+      @if (authService.canManageStands()) {
+        <a routerLink="/admin/stands" routerLinkActive="active" class="nav-item">
+          Cantine &amp; Menu
+        </a>
+      }
+
+      @if (authService.canModerateReviews()) {
+        <a routerLink="/admin/moderation" routerLinkActive="active" class="nav-item">
+          Moderazione
+        </a>
+      }
+    </nav>
+
+    <div class="user-controls">
+      <div class="user-info">
+        <span class="user-name">{{ username }}</span>
+        <div class="role-pills">
+          @for (role of roles; track role) {
+            <span class="role-pill" [attr.data-role]="role">{{ roleBadgeLabel(role) }}</span>
+          }
+        </div>
+      </div>
+
+      <button type="button" (click)="onLogout()" class="btn-logout">Esci</button>
+    </div>
+  </div>
+</header>
