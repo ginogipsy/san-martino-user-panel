@@ -1,0 +1,37 @@
+<app-navbar></app-navbar>
+
+<div class="page-wrapper">
+  <header class="page-header">
+    <div>
+      <h1>Moderazione Recensioni</h1>
+      <p class="subtitle">Gestione e approvazione delle recensioni inviate dall'app mobile per eventi, cantine e piatti.</p>
+    </div>
+  </header>
+
+  <div class="filters-bar">
+    <div class="filter-group">
+      <span class="filter-label">Stato:</span>
+      <button type="button" class="chip" [class.active]="selectedFilter() === 'PENDING'" (click)="setFilter('PENDING')">In attesa</button>
+      <button type="button" class="chip" [class.active]="selectedFilter() === 'APPROVED'" (click)="setFilter('APPROVED')">Approvate</button>
+      <button type="button" class="chip" [class.active]="selectedFilter() === 'REJECTED'" (click)="setFilter('REJECTED')">Rifiutate</button>
+      <button type="button" class="chip" [class.active]="selectedFilter() === 'ALL'" (click)="setFilter('ALL')">Tutte</button>
+    </div>
+
+    <div class="filter-group">
+      <span class="filter-label">Categoria:</span>
+      <button type="button" class="chip" [class.active]="selectedTargetType() === 'ALL'" (click)="setTargetType('ALL')">Tutte</button>
+      <button type="button" class="chip" [class.active]="selectedTargetType() === 'STAND'" (click)="setTargetType('STAND')">Cantine</button>
+      <button type="button" class="chip" [class.active]="selectedTargetType() === 'MENU_ITEM'" (click)="setTargetType('MENU_ITEM')">Piatti</button>
+      <button type="button" class="chip" [class.active]="selectedTargetType() === 'EVENT'" (click)="setTargetType('EVENT')">Eventi</button>
+    </div>
+  </div>
+
+  <div class="empty-card">
+    <div class="empty-icon">🛡️</div>
+    <h2>Area Moderazione Pronta</h2>
+    <p>
+      Nessuna recensione in coda per i filtri selezionati (<strong>{{ selectedFilter() }}</strong> / <strong>{{ selectedTargetType() }}</strong>).
+      Questa sezione verrà alimentata automaticamente con l'attivazione del modulo recensioni dell'app mobile (Step 4).
+    </p>
+  </div>
+</div>
