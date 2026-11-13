@@ -5,7 +5,7 @@
     <div>
       <h1>Gestione Cantine, Menu e Quantità</h1>
       <p class="subtitle">
-        Consulta le cantine del percorso, posizionale sulla mappa interattiva e gestisci piatti, parole chiave e scorte.
+        Consulta le cantine del percorso, posizionale su Google Maps e gestisci piatti, parole chiave e scorte.
       </p>
     </div>
     @if (authService.isAdmin()) {
@@ -52,15 +52,15 @@
       }
     </aside>
 
-    <!-- Main area: Dettaglio Cantina + Mappa + Menu & Quantità -->
+    <!-- Main area: Dettaglio Cantina + Google Maps + Menu & Quantità -->
     <main class="stand-main">
       @if (!canEditSelectedStand() && !isCreatingStand() && selectedStand()) {
         <div class="readonly-banner">
-          <span>🔒 <strong>Modalità Sola Lettura:</strong> Puoi consultare la scheda, la posizione sulla mappa e il menu di questa cantina, ma puoi modificare solo la cantina associata al tuo account (<strong>{{ authService.getUsername() }}</strong>).</span>
+          <span>🔒 <strong>Modalità Sola Lettura:</strong> Puoi consultare la scheda, la posizione su Google Maps e il menu di questa cantina, ma puoi modificare solo la cantina associata al tuo account (<strong>{{ authService.getUsername() }}</strong>).</span>
         </div>
       }
 
-      <!-- Card 1: Anagrafica Cantina + Mappa -->
+      <!-- Card 1: Anagrafica Cantina + Google Maps -->
       <section class="card">
         <div class="card-header">
           <div>
@@ -114,10 +114,10 @@
               <input type="number" formControlName="firstParticipationYear" min="1900" max="2200" />
             </div>
             <div class="form-group">
-              <label>Coordinate Selezionate</label>
+              <label>Posizione GPS della Cantina</label>
               <div class="coords-badge-bar">
                 <span class="coord-pill">
-                  📍 {{ standForm.getRawValue().latitude | number:'1.4-6' }}, {{ standForm.getRawValue().longitude | number:'1.4-6' }}
+                  📍 {{ markerPosition().lat | number:'1.4-6' }}, {{ markerPosition().lng | number:'1.4-6' }}
                 </span>
                 <a
                   class="btn-google-maps"
@@ -125,27 +125,37 @@
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  🗺️ Apri in Google Maps ↗
+                  🗺️ Vedi su Google Maps ↗
                 </a>
+                @if (canEditSelectedStand()) {
+                  <button
+                    type="button"
+                    class="btn-toggle-map"
+                    (click)="toggleLocationEditor()"
+                  >
+                    {{ showLocationEditor() ? '✕ Chiudi Mappa' : '📍 Modifica Posizione sulla Mappa' }}
+                  </button>
+                }
               </div>
             </div>
           </div>
 
-          <!-- Mappa Interattiva -->
+          <!-- Sezione Google Maps (caricata solo su richiesta per azzerare consumi API) -->
+          @if (showLocationEditor()) {
           <div class="map-section">
             <div class="map-header">
               <div>
-                <label class="map-title">Posizione della Cantina sulla Mappa (Arce)</label>
+                <label class="map-title">Google Maps — Posizione della Cantina (Arce)</label>
                 <p class="map-hint">
                   @if (canEditSelectedStand()) {
-                    Clicca sulla mappa o trascina il segnaposto 🍷 per aggiornare automaticamente la posizione della cantina.
+                    Clicca sulla mappa o trascina il pin rosso per aggiornare le coordinate della cantina.
                   } @else {
                     Posizione geografica della cantina lungo il percorso.
                   }
                 </p>
               </div>
 
-              @if (canEditSelectedStand()) {
+              @if (googleMapsReady() && canEditSelectedStand()) {
                 <div class="map-search-box">
                   <input
                     type="text"
@@ -167,8 +177,51 @@
               }
             </div>
 
-            <div #standMapContainer class="stand-map-canvas"></div>
+            @if (googleMapsError(); as err) {
+              <div class="alert alert-error" style="margin-bottom: 12px;">
+                {{ err }}
+              </div>
+            }
+
+            @if (!googleMapsReady()) {
+              <div class="gmaps-key-prompt">
+                <p>
+                  <strong>🔑 Configura la tua Google Maps API Key</strong><br />
+                  Incolla qui sotto la chiave API creata su Google Cloud Console (oppure salvala in <code>src/environments/environment.ts</code> alla voce <code>googleMapsApiKey</code>) per attivare Google Maps interattiva.
+                </p>
+                <div class="gmaps-key-row">
+                  <input
+                    type="text"
+                    [ngModel]="apiKeyInput()"
+                    [ngModelOptions]="{ standalone: true }"
+                    (ngModelChange)="apiKeyInput.set($event)"
+                    placeholder="AIzaSy..."
+                  />
+                  <button type="button" class="btn-map-search" (click)="saveGoogleMapsApiKey()">
+                    Attiva Google Maps
+                  </button>
+                </div>
+              </div>
+            } @else {
+              <div class="stand-map-canvas">
+                <google-map
+                  height="320px"
+                  width="100%"
+                  [center]="mapCenter()"
+                  [zoom]="mapZoom()"
+                  [options]="mapOptions"
+                  (mapClick)="onGoogleMapClick($event)"
+                >
+                  <map-marker
+                    [position]="markerPosition()"
+                    [options]="markerOptions()"
+                    (mapDragend)="onGoogleMarkerDragEnd($event)"
+                  ></map-marker>
+                </google-map>
+              </div>
+            }
           </div>
+          }
 
           @if (canEditSelectedStand()) {
             <button type="submit" class="btn-primary" [disabled]="standForm.invalid || savingStand()">
@@ -247,7 +300,6 @@
             </div>
           </div>
 
-          <!-- Lista Piatti con controlli rapidi quantità -->
           @if (stand.menuItems.length === 0) {
             <div class="empty-menu">
               Nessun piatto o bevanda ancora inserito per questa cantina.
@@ -318,7 +370,6 @@
             </div>
           }
 
-          <!-- Form Aggiungi / Modifica Piatto (solo se autorizzato) -->
           @if (canEditSelectedStand()) {
             <div class="menu-form-box">
               <div class="menu-form-header">

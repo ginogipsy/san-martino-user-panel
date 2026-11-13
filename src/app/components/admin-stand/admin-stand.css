@@ -656,3 +656,279 @@ textarea {
     grid-template-columns: 1fr;
   }
 }
+
+.gmaps-key-prompt {
+  background: #ffffff;
+  border: 1px dashed #94a3b8;
+  border-radius: 10px;
+  padding: 16px;
+}
+
+.gmaps-key-prompt p {
+  margin: 0 0 12px;
+  font-size: 0.85rem;
+  color: #334155;
+  line-height: 1.45;
+}
+
+.gmaps-key-row {
+  display: flex;
+  gap: 8px;
+}
+
+.gmaps-key-row input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  font-family: monospace;
+}
+
+.stand-map-canvas {
+  height: 320px;
+}
+
+/* --- Stili Lista Piatti, Keywords e Controlli Quantità --- */
+.menu-items-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.menu-item-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 16px 18px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  flex-wrap: wrap;
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.menu-item-row:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+}
+
+.menu-item-row.out-of-stock {
+  background: #fff1f2;
+  border-color: #fecdd3;
+}
+
+.menu-item-info {
+  flex: 1;
+  min-width: 240px;
+}
+
+.menu-item-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+
+.menu-item-title strong {
+  font-size: 1.05rem;
+  color: #0f172a;
+}
+
+.kind-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.kind-badge.drink {
+  background: #ede9fe;
+  color: #5b21b6;
+}
+
+.soldout-badge {
+  background: #dc2626;
+  color: #ffffff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  text-transform: uppercase;
+}
+
+.item-desc {
+  margin: 0 0 8px;
+  font-size: 0.88rem;
+  color: #475569;
+}
+
+.keywords-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.keyword-chip {
+  font-size: 0.76rem;
+  background: #e0f2fe;
+  color: #0369a1;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-weight: 600;
+}
+
+.no-keywords {
+  font-size: 0.78rem;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.quantity-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-step {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #1e293b;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-weight: 700;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.btn-step:hover {
+  background: #e2e8f0;
+}
+
+.menu-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-small {
+  background: #f1f5f9;
+  color: #1e293b;
+  border: 1px solid #cbd5e1;
+  padding: 7px 14px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.84rem;
+  cursor: pointer;
+}
+
+.btn-small:hover {
+  background: #e2e8f0;
+}
+
+.btn-small.btn-danger {
+  background: #ef4444;
+  border-color: #ef4444;
+  color: #ffffff;
+}
+
+.btn-small.btn-danger:hover {
+  background: #dc2626;
+}
+
+.menu-form-box {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.menu-form-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.menu-form-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  color: #0f172a;
+}
+
+.btn-cancel {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #475569;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-success {
+  background: #059669;
+  color: #ffffff;
+  border: none;
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 8px;
+}
+
+.btn-success:hover {
+  background: #047857;
+}
+
+.btn-success:disabled {
+  background: #94a3b8;
+  cursor: not-allowed;
+}
+
+.hint {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
+.empty-menu {
+  padding: 24px;
+  text-align: center;
+  color: #64748b;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 10px;
+  margin-bottom: 16px;
+}
+
+.btn-toggle-map {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #0f172a;
+  color: #ffffff;
+  border: none;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.btn-toggle-map:hover {
+  background: #334155;
+}
