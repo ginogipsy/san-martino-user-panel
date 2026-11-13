@@ -1,359 +1,387 @@
 <app-navbar></app-navbar>
 
-<div class="stands-page">
-  <header class="stands-header">
+<div class="page-wrapper">
+  <header class="page-header">
     <div>
-      <h1>
-        {{
-          isStandOwner
-            ? 'Gestione La Mia Cantina & Menu'
-            : 'Gestione Cantine, Piatti, Keywords & Scorte'
-        }}
-      </h1>
-      <p>
-        Seleziona una cantina per modificarne i dati, aggiungere o togliere piatti, impostare le
-        parole chiave di ricerca e regolare le porzioni disponibili.
+      <h1>Gestione Cantine, Menu e Quantità</h1>
+      <p class="subtitle">
+        Consulta le cantine del percorso, posizionale sulla mappa interattiva e gestisci piatti, parole chiave e scorte.
       </p>
     </div>
-
-    @if (!isStandOwner) {
-      <button type="button" class="btn-primary" (click)="prepareNewStand()">
+    @if (authService.isAdmin()) {
+      <button type="button" class="btn-new-stand" (click)="startNewStand()">
         + Nuova Cantina
       </button>
     }
   </header>
 
-  @if (statusMessage) {
-    <div class="banner banner-success">{{ statusMessage }}</div>
-  }
-  @if (errorMessage) {
-    <div class="banner banner-error">{{ errorMessage }}</div>
+  @if (feedbackMessage(); as msg) {
+    <div class="alert" [class.alert-success]="msg.type === 'success'" [class.alert-error]="msg.type === 'error'">
+      {{ msg.text }}
+    </div>
   }
 
-  <div class="stands-layout">
-    <!-- Sidebar lista cantine -->
+  <div class="workspace-grid">
+    <!-- Sidebar: Lista Cantine -->
     <aside class="stands-sidebar">
-      <div class="sidebar-title">Cantine ({{ stands.length }})</div>
-      <div class="stands-list">
-        @for (st of stands; track st.id) {
-          @if (!isStandOwner || !userStandId || st.id === userStandId) {
-            <div
-              class="stand-list-item"
-              [class.active]="selectedStand?.id === st.id"
-              (click)="selectStand(st.id)"
-            >
-              <div class="stand-item-info">
-                <span class="stand-badge">#{{ st.number }}</span>
-                <div>
-                  <div class="stand-name">{{ st.name }}</div>
-                  <div class="stand-sub">Dal {{ st.firstParticipationYear }}</div>
-                </div>
-              </div>
-
-              @if (!isStandOwner) {
-                <button
-                  type="button"
-                  class="btn-icon-delete"
-                  title="Elimina Cantina"
-                  (click)="$event.stopPropagation(); onDeleteStand(st)"
-                >
-                  ✕
-                </button>
-              }
-            </div>
-          }
-        } @empty {
-          <p class="empty-hint">Nessuna cantina caricata.</p>
-        }
+      <div class="sidebar-header">
+        <h3>Cantine ({{ stands().length }})</h3>
       </div>
+
+      @if (loading()) {
+        <p class="muted">Caricamento cantine...</p>
+      } @else if (stands().length === 0) {
+        <p class="muted">Nessuna cantina presente.</p>
+      } @else {
+        <div class="stand-list">
+          @for (stand of stands(); track stand.id) {
+            <button
+              type="button"
+              class="stand-item"
+              [class.active]="!isCreatingStand() && selectedStand()?.id === stand.id"
+              (click)="selectStand(stand.id)"
+            >
+              <span class="stand-number">#{{ stand.number }}</span>
+              <div class="stand-meta">
+                <strong>{{ stand.name }}</strong>
+                <small>Dal {{ stand.firstParticipationYear }}</small>
+              </div>
+            </button>
+          }
+        </div>
+      }
     </aside>
 
-    <!-- Area principale -->
-    <section class="stands-main">
-      <!-- Dati anagrafici Cantina -->
-      <div class="card">
+    <!-- Main area: Dettaglio Cantina + Mappa + Menu & Quantità -->
+    <main class="stand-main">
+      @if (!canEditSelectedStand() && !isCreatingStand() && selectedStand()) {
+        <div class="readonly-banner">
+          <span>🔒 <strong>Modalità Sola Lettura:</strong> Puoi consultare la scheda, la posizione sulla mappa e il menu di questa cantina, ma puoi modificare solo la cantina associata al tuo account (<strong>{{ authService.getUsername() }}</strong>).</span>
+        </div>
+      }
+
+      <!-- Card 1: Anagrafica Cantina + Mappa -->
+      <section class="card">
         <div class="card-header">
-          <h2>
-            @if (selectedStand) {
-              Modifica Cantina #{{ selectedStand.number }} — {{ selectedStand.name }}
-            } @else {
-              Crea Nuova Cantina
-            }
-          </h2>
+          <div>
+            <h2>
+              @if (isCreatingStand()) {
+                Nuova Cantina
+              } @else if (selectedStand(); as s) {
+                @if (canEditSelectedStand()) {
+                  Modifica Cantina #{{ s.number }} — {{ s.name }}
+                } @else {
+                  Dettaglio Cantina #{{ s.number }} — {{ s.name }}
+                }
+              } @else {
+                Seleziona una cantina
+              }
+            </h2>
+          </div>
+          @if (!isCreatingStand() && selectedStand() && authService.isAdmin()) {
+            <button type="button" class="btn-danger-outline" (click)="deleteCurrentStand()">
+              Elimina Cantina
+            </button>
+          }
         </div>
 
-        <form [formGroup]="standForm" (ngSubmit)="onSubmit()">
-          <div class="form-row-3">
+        <form [formGroup]="standForm" (ngSubmit)="saveStand()">
+          <div class="form-row-2">
             <div class="form-group">
-              <label for="number">Numero Cantina</label>
-              <input id="number" type="number" formControlName="number" />
+              <label>Numero Cantina</label>
+              <input type="number" formControlName="number" min="1" max="999" />
             </div>
-
-            <div class="form-group form-col-span-2">
-              <label for="name">Nome Cantina</label>
-              <input id="name" type="text" formControlName="name" placeholder="Es. Nonna Maria" />
+            <div class="form-group">
+              <label>Nome Cantina</label>
+              <input type="text" formControlName="name" placeholder="Es. Il tartufo del Tobia" />
             </div>
           </div>
 
           <div class="form-row-2">
             <div class="form-group">
               <label>Descrizione (IT)</label>
-              <textarea rows="2" formControlName="descriptionIt" placeholder="Descrizione in italiano..."></textarea>
+              <textarea formControlName="descriptionIt" rows="2" placeholder="Descrizione in italiano"></textarea>
             </div>
             <div class="form-group">
               <label>Descrizione (EN)</label>
-              <textarea rows="2" formControlName="descriptionEn" placeholder="Description in English..."></textarea>
+              <textarea formControlName="descriptionEn" rows="2" placeholder="English description"></textarea>
             </div>
           </div>
 
-          <div class="form-row-3">
+          <div class="form-row-2">
             <div class="form-group">
               <label>Anno Prima Partecipazione</label>
-              <input type="number" formControlName="firstParticipationYear" />
+              <input type="number" formControlName="firstParticipationYear" min="1900" max="2200" />
             </div>
             <div class="form-group">
-              <label>Latitudine</label>
-              <input type="number" step="0.0001" formControlName="latitude" />
-            </div>
-            <div class="form-group">
-              <label>Longitudine</label>
-              <input type="number" step="0.0001" formControlName="longitude" />
+              <label>Coordinate Selezionate</label>
+              <div class="coords-badge-bar">
+                <span class="coord-pill">
+                  📍 {{ standForm.getRawValue().latitude | number:'1.4-6' }}, {{ standForm.getRawValue().longitude | number:'1.4-6' }}
+                </span>
+                <a
+                  class="btn-google-maps"
+                  [href]="getGoogleMapsUrl()"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  🗺️ Apri in Google Maps ↗
+                </a>
+              </div>
             </div>
           </div>
 
-          <!-- Se stiamo creando una cantina nuova da zero, permettiamo anche di aggiungere piatti subito -->
-          @if (!selectedStand) {
-            <div class="initial-menu-box">
-              <div class="box-header">
-                <h3>Piatti e Bevande Iniziali (Opzionale)</h3>
-                <button type="button" (click)="addPiatto()" class="btn-add">
-                  + Aggiungi Piatto Iniziale
-                </button>
-              </div>
-
-              <div formArrayName="menu">
-                @for (piatto of menu.controls; track $index; let i = $index) {
-                  <div [formGroupName]="i" class="piatto-card">
-                    <div class="piatto-header">
-                      <strong>Piatto #{{ i + 1 }}</strong>
-                      <button type="button" (click)="removePiatto(i)" class="btn-remove">
-                        Elimina
-                      </button>
-                    </div>
-
-                    <div class="form-row-3">
-                      <div class="form-group form-col-span-2">
-                        <input type="text" formControlName="nomePiatto" placeholder="Nome Piatto (es. Amatriciana)" />
-                      </div>
-                      <div class="form-group">
-                        <select formControlName="tipo">
-                          <option value="FOOD">🍽️ Cibo (FOOD)</option>
-                          <option value="DRINK">🍷 Bevanda (DRINK)</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    <div class="form-row-2">
-                      <input type="text" formControlName="descrizioneIt" placeholder="Descrizione IT" />
-                      <input type="text" formControlName="descrizioneEn" placeholder="Descrizione EN" />
-                    </div>
-
-                    <div class="form-row-2">
-                      <input type="number" formControlName="disponibilita" placeholder="Quantità disponibile" />
-                      <input
-                        type="text"
-                        formControlName="keywordsCsv"
-                        placeholder="Parole chiave separate da virgola (es. pasta, primo, sugo, guanciale)"
-                      />
-                    </div>
-                  </div>
-                }
-              </div>
-            </div>
-          }
-
-          <button type="submit" [disabled]="standForm.invalid || isSubmitting" class="btn-save">
-            {{ selectedStand ? 'Salva Anagrafica Cantina' : 'Crea Cantina e Menu' }}
-          </button>
-        </form>
-      </div>
-
-      <!-- Gestione Piatti, Parole Chiave e Quantità per la Cantina selezionata -->
-      @if (selectedStand) {
-        <div class="card">
-          <div class="card-header">
-            <h2>
-              🍽️ Menu, Parole Chiave e Scorte — {{ selectedStand.name }} ({{
-                selectedStand.menuItems.length
-              }}
-              voci)
-            </h2>
-          </div>
-
-          <!-- Lista Piatti Esistenti con controllo rapido quantità -->
-          <div class="dishes-list">
-            @for (item of selectedStand.menuItems; track item.id) {
-              <div class="dish-row" [class.out-of-stock]="item.availablePlates === 0">
-                <div class="dish-info">
-                  <div class="dish-title-line">
-                    <span class="kind-tag" [attr.data-kind]="item.kind">
-                      {{ item.kind === 'FOOD' ? '🍽️ Cibo' : '🍷 Bevanda' }}
-                    </span>
-                    <strong>{{ item.name }}</strong>
-                  </div>
-                  <div class="dish-desc">{{ item.description.it }}</div>
-
-                  @if (item.keywords && item.keywords.length > 0) {
-                    <div class="keywords-list">
-                      @for (kw of item.keywords; track kw) {
-                        <span class="kw-chip">#{{ kw }}</span>
-                      }
-                    </div>
+          <!-- Mappa Interattiva -->
+          <div class="map-section">
+            <div class="map-header">
+              <div>
+                <label class="map-title">Posizione della Cantina sulla Mappa (Arce)</label>
+                <p class="map-hint">
+                  @if (canEditSelectedStand()) {
+                    Clicca sulla mappa o trascina il segnaposto 🍷 per aggiornare automaticamente la posizione della cantina.
+                  } @else {
+                    Posizione geografica della cantina lungo il percorso.
                   }
-                </div>
-
-                <!-- Controllo Rapido Quantità / Scorte -->
-                <div class="qty-controls">
-                  <span class="qty-label">Porzioni disponibili</span>
-                  <div class="qty-stepper">
-                    <button
-                      type="button"
-                      class="btn-qty"
-                      (click)="adjustPlateQuantity(item, -10)"
-                      title="Scala 10 porzioni"
-                    >
-                      -10
-                    </button>
-                    <button
-                      type="button"
-                      class="btn-qty"
-                      (click)="adjustPlateQuantity(item, -1)"
-                      title="Scala 1 porzione"
-                    >
-                      -1
-                    </button>
-                    <input
-                      type="number"
-                      class="qty-input"
-                      [value]="item.availablePlates"
-                      min="0"
-                      (change)="setPlateQuantity(item, $any($event.target).value)"
-                    />
-                    <button
-                      type="button"
-                      class="btn-qty"
-                      (click)="adjustPlateQuantity(item, 1)"
-                      title="Aggiungi 1 porzione"
-                    >
-                      +1
-                    </button>
-                    <button
-                      type="button"
-                      class="btn-qty"
-                      (click)="adjustPlateQuantity(item, 10)"
-                      title="Aggiungi 10 porzioni"
-                    >
-                      +10
-                    </button>
-                  </div>
-                </div>
-
-                <div class="dish-actions">
-                  <button type="button" class="btn-secondary" (click)="editMenuItem(item)">
-                    Modifica
-                  </button>
-                  <button type="button" class="btn-remove" (click)="onDeleteDish(item)">
-                    Rimuovi
-                  </button>
-                </div>
+                </p>
               </div>
-            } @empty {
-              <p class="empty-hint">
-                Nessun piatto ancora presente in questa cantina. Usa il modulo qui sotto per
-                aggiungere il primo piatto!
-              </p>
-            }
-          </div>
 
-          <hr class="divider" />
-
-          <!-- Form Aggiungi / Modifica singolo Piatto -->
-          <div class="dish-form-box">
-            <div class="box-header">
-              <h3>
-                {{
-                  editingMenuItemId
-                    ? '✏️ Modifica Piatto / Bevanda'
-                    : '➕ Aggiungi Nuovo Piatto o Bevanda'
-                }}
-              </h3>
-              @if (editingMenuItemId) {
-                <button type="button" class="btn-secondary" (click)="resetDishForm()">
-                  Annulla Modifica
-                </button>
+              @if (canEditSelectedStand()) {
+                <div class="map-search-box">
+                  <input
+                    type="text"
+                    [ngModel]="mapSearchQuery()"
+                    [ngModelOptions]="{ standalone: true }"
+                    (ngModelChange)="mapSearchQuery.set($event)"
+                    (keydown.enter)="$event.preventDefault(); searchAddressOnMap()"
+                    placeholder="Cerca via o piazza ad Arce..."
+                  />
+                  <button
+                    type="button"
+                    class="btn-map-search"
+                    [disabled]="searchingAddress()"
+                    (click)="searchAddressOnMap()"
+                  >
+                    {{ searchingAddress() ? 'Ricerca...' : 'Cerca' }}
+                  </button>
+                </div>
               }
             </div>
 
-            <form [formGroup]="dishForm" (ngSubmit)="onSaveDish()">
-              <div class="form-row-3">
-                <div class="form-group form-col-span-2">
-                  <label>Nome Piatto / Bevanda</label>
-                  <input
-                    type="text"
-                    formControlName="name"
-                    placeholder="Es. Pasta all'Amatriciana"
-                  />
-                </div>
-                <div class="form-group">
-                  <label>Tipologia</label>
-                  <select formControlName="kind">
-                    <option value="FOOD">🍽️ Cibo (FOOD)</option>
-                    <option value="DRINK">🍷 Bevanda (DRINK)</option>
-                  </select>
-                </div>
-              </div>
-
-              <div class="form-row-2">
-                <div class="form-group">
-                  <label>Descrizione (IT)</label>
-                  <input
-                    type="text"
-                    formControlName="descriptionIt"
-                    placeholder="Es. Pasta con guanciale croccante, pomodoro e pecorino"
-                  />
-                </div>
-                <div class="form-group">
-                  <label>Descrizione (EN)</label>
-                  <input
-                    type="text"
-                    formControlName="descriptionEn"
-                    placeholder="Es. Pasta with crispy guanciale, tomato sauce and pecorino"
-                  />
-                </div>
-              </div>
-
-              <div class="form-row-3">
-                <div class="form-group">
-                  <label>Quantità Disponibile (Porzioni)</label>
-                  <input type="number" min="0" formControlName="availablePlates" />
-                </div>
-                <div class="form-group form-col-span-2">
-                  <label>Parole Chiave per la Ricerca (separate da virgola)</label>
-                  <input
-                    type="text"
-                    formControlName="keywordsCsv"
-                    placeholder="Es. pasta, primo, sugo, guanciale, pecorino"
-                  />
-                </div>
-              </div>
-
-              <button type="submit" class="btn-add" [disabled]="dishForm.invalid">
-                {{ editingMenuItemId ? 'Salva Modifiche Piatto' : '+ Inserisci Piatto nel Menu' }}
-              </button>
-            </form>
+            <div #standMapContainer class="stand-map-canvas"></div>
           </div>
-        </div>
+
+          @if (canEditSelectedStand()) {
+            <button type="submit" class="btn-primary" [disabled]="standForm.invalid || savingStand()">
+              {{ savingStand() ? 'Salvataggio...' : isCreatingStand() ? 'Crea Cantina' : 'Salva Anagrafica Cantina' }}
+            </button>
+          }
+        </form>
+
+        <!-- Gestori / Proprietari della Cantina -->
+        @if (!isCreatingStand() && selectedStand(); as currentStand) {
+          <div class="owners-section">
+            <div class="owners-header">
+              <h4>👥 Gestori Associati alla Cantina</h4>
+              <span class="owners-subtitle">
+                Gli utenti con ruolo <code>ROLE_STAND_OWNER</code> il cui username o email compare qui possono modificare questa cantina.
+              </span>
+            </div>
+
+            <div class="owners-chips">
+              @for (owner of currentStand.owners; track owner.id) {
+                <div class="owner-chip">
+                  <span class="owner-name">
+                    <strong>{{ owner.firstName }} {{ owner.lastName }}</strong>
+                    @if (owner.email) {
+                      <small>({{ owner.email }})</small>
+                    }
+                    <span class="owner-role-tag">{{ owner.role }}</span>
+                  </span>
+                  @if (authService.isAdmin()) {
+                    <button
+                      type="button"
+                      class="owner-remove-btn"
+                      title="Rimuovi gestore"
+                      (click)="removeOwnerFromStand(owner)"
+                    >
+                      ✕
+                    </button>
+                  }
+                </div>
+              } @empty {
+                <span class="muted">Nessun gestore associato.</span>
+              }
+            </div>
+
+            @if (authService.isAdmin()) {
+              <form [formGroup]="ownerForm" (ngSubmit)="addOwnerToStand()" class="owner-add-form">
+                <input type="text" formControlName="firstName" placeholder="Username o Nome (es. ginogipsy)" />
+                <input type="text" formControlName="lastName" placeholder="Cognome" />
+                <input type="email" formControlName="email" placeholder="Email (opzionale)" />
+                <select formControlName="role">
+                  <option value="PRIMARY">Principale</option>
+                  <option value="SECONDARY">Secondario</option>
+                </select>
+                <button type="submit" class="btn-secondary" [disabled]="ownerForm.invalid || savingOwner()">
+                  + Associa Gestore
+                </button>
+              </form>
+            }
+          </div>
+        }
+      </section>
+
+      <!-- Card 2: Menu, Parole Chiave e Scorte -->
+      @if (!isCreatingStand() && selectedStand(); as stand) {
+        <section class="card">
+          <div class="card-header">
+            <div>
+              <h2>🍽️ Menu, Parole Chiave e Scorte — {{ stand.name }} ({{ stand.menuItems.length }} voci)</h2>
+              <p class="card-subtitle">
+                @if (canEditSelectedStand()) {
+                  Aggiorna le quantità in tempo reale e definisci le parole chiave (es. <em>pasta, primo, sugo, guanciale</em>) per la ricerca intelligente.
+                } @else {
+                  Elenco dei piatti, parole chiave e porzioni disponibili in tempo reale.
+                }
+              </p>
+            </div>
+          </div>
+
+          <!-- Lista Piatti con controlli rapidi quantità -->
+          @if (stand.menuItems.length === 0) {
+            <div class="empty-menu">
+              Nessun piatto o bevanda ancora inserito per questa cantina.
+            </div>
+          } @else {
+            <div class="menu-items-list">
+              @for (item of stand.menuItems; track item.id) {
+                <div class="menu-item-row" [class.out-of-stock]="item.availablePlates === 0">
+                  <div class="menu-item-info">
+                    <div class="menu-item-title">
+                      <span class="kind-badge" [class.drink]="item.kind === 'DRINK'">
+                        {{ item.kind === 'FOOD' ? '🍽️ Cibo' : '🍷 Bevanda' }}
+                      </span>
+                      <strong>{{ item.name }}</strong>
+                      @if (item.availablePlates === 0) {
+                        <span class="soldout-badge">Esaurito</span>
+                      }
+                    </div>
+                    <p class="item-desc">{{ item.description.it }}</p>
+
+                    @if (item.keywords && item.keywords.length > 0) {
+                      <div class="keywords-list">
+                        @for (kw of item.keywords; track kw) {
+                          <span class="keyword-chip">#{{ kw }}</span>
+                        }
+                      </div>
+                    } @else {
+                      <span class="no-keywords">Nessuna parola chiave associata</span>
+                    }
+                  </div>
+
+                  <!-- Controlli rapidi quantità (scorte) -->
+                  <div class="quantity-controls">
+                    <span class="qty-label">Porzioni disponibili</span>
+                    @if (canEditSelectedStand()) {
+                      <div class="qty-stepper">
+                        <button type="button" class="btn-step" (click)="adjustMenuItemQuantity(item, -10)" title="-10">-10</button>
+                        <button type="button" class="btn-step" (click)="adjustMenuItemQuantity(item, -1)" title="-1">-1</button>
+                        <input
+                          type="number"
+                          class="qty-input"
+                          [value]="item.availablePlates"
+                          min="0"
+                          (change)="setMenuItemQuantity(item, $any($event.target).value)"
+                        />
+                        <button type="button" class="btn-step" (click)="adjustMenuItemQuantity(item, 1)" title="+1">+1</button>
+                        <button type="button" class="btn-step" (click)="adjustMenuItemQuantity(item, 10)" title="+10">+10</button>
+                      </div>
+                    } @else {
+                      <div class="qty-readonly-pill">
+                        {{ item.availablePlates }} porzioni
+                      </div>
+                    }
+                  </div>
+
+                  @if (canEditSelectedStand()) {
+                    <div class="menu-item-actions">
+                      <button type="button" class="btn-small" (click)="startEditMenuItem(item)">
+                        Modifica
+                      </button>
+                      <button type="button" class="btn-small btn-danger" (click)="deleteMenuItem(item)">
+                        Rimuovi
+                      </button>
+                    </div>
+                  }
+                </div>
+              }
+            </div>
+          }
+
+          <!-- Form Aggiungi / Modifica Piatto (solo se autorizzato) -->
+          @if (canEditSelectedStand()) {
+            <div class="menu-form-box">
+              <div class="menu-form-header">
+                <h3>
+                  {{ editingMenuItemId() ? '✏️ Modifica Piatto / Bevanda' : '➕ Aggiungi Nuovo Piatto o Bevanda' }}
+                </h3>
+                @if (editingMenuItemId()) {
+                  <button type="button" class="btn-cancel" (click)="resetMenuItemForm()">
+                    Annulla modifica
+                  </button>
+                }
+              </div>
+
+              <form [formGroup]="menuItemForm" (ngSubmit)="saveMenuItem()">
+                <div class="form-row-3">
+                  <div class="form-group">
+                    <label>Nome Piatto / Bevanda</label>
+                    <input type="text" formControlName="name" placeholder="Es. Pasta all'Amatriciana" />
+                  </div>
+                  <div class="form-group">
+                    <label>Tipologia</label>
+                    <select formControlName="kind">
+                      <option value="FOOD">🍽️ Cibo (FOOD)</option>
+                      <option value="DRINK">🍷 Bevanda (DRINK)</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label>Quantità Iniziale (Porzioni)</label>
+                    <input type="number" formControlName="availablePlates" min="0" />
+                  </div>
+                </div>
+
+                <div class="form-row-2">
+                  <div class="form-group">
+                    <label>Descrizione (IT)</label>
+                    <input type="text" formControlName="descriptionIt" placeholder="Es. Bucatini con guanciale croccante e pecorino" />
+                  </div>
+                  <div class="form-group">
+                    <label>Descrizione (EN)</label>
+                    <input type="text" formControlName="descriptionEn" placeholder="Es. Bucatini pasta with crispy pork cheek and pecorino" />
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label>Parole Chiave di Ricerca (separate da virgola)</label>
+                  <input
+                    type="text"
+                    formControlName="keywordsText"
+                    placeholder="Es. pasta, primo, sugo, guanciale, amatriciana, pecorino"
+                  />
+                  <small class="hint">
+                    Queste parole chiave permettono all'app di trovare questa cantina anche quando l'utente cerca un ingrediente o una categoria generica (es. "pasta" o "guanciale").
+                  </small>
+                </div>
+
+                <button type="submit" class="btn-success" [disabled]="menuItemForm.invalid || savingMenuItem()">
+                  {{ savingMenuItem() ? 'Salvataggio...' : editingMenuItemId() ? 'Aggiorna Piatto' : 'Aggiungi al Menu' }}
+                </button>
+              </form>
+            </div>
+          }
+        </section>
       }
-    </section>
+    </main>
   </div>
 </div>

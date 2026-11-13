@@ -1,8 +1,8 @@
-import { inject, Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
+import { inject, Injectable } from '@angular/core';
+import { jwtDecode } from 'jwt-decode';
 import { tap } from 'rxjs';
 import { environment } from '../../environments/environment';
-import { jwtDecode } from 'jwt-decode';
 
 export interface LoginResponse {
   access_token: string;
@@ -13,44 +13,63 @@ export interface LoginResponse {
 
 export type AppRole = 'ROLE_ADMIN' | 'ROLE_STAND_OWNER' | 'ROLE_MODERATOR' | string;
 
-@Injectable({ providedIn: 'root' })
+interface KeycloakJwtPayload {
+  sub?: string;
+  preferred_username?: string;
+  email?: string;
+  given_name?: string;
+  family_name?: string;
+  role?: string;
+  roles?: string[];
+  standId?: string;
+  realm_access?: {
+    roles?: string[];
+  };
+  resource_access?: Record<string, { roles?: string[] }>;
+}
+
+@Injectable({
+  providedIn: 'root',
+})
 export class Auth {
   private readonly http = inject(HttpClient);
   private readonly API_URL = environment.authUrl;
 
-  /**
-   * Effettua il login inviando le credenziali al backend (auth-service tramite Gateway)
-   */
   login(credentials: { username?: string | null; password?: string | null }) {
     return this.http.post<LoginResponse>(`${this.API_URL}/login`, credentials).pipe(
       tap((res) => {
         if (typeof window !== 'undefined' && window.localStorage) {
-          const token = res?.access_token;
-
-          if (!token) {
-            console.error('Nessun access_token presente nella risposta del server:', res);
-            return;
-          }
-
-          localStorage.setItem('token', token);
+          localStorage.setItem('token', res.access_token);
           if (res.refresh_token) {
             localStorage.setItem('refresh_token', res.refresh_token);
           }
 
           try {
-            const decoded: any = jwtDecode(token);
-            const rawRoles: string[] = [
-              ...(Array.isArray(decoded.realm_access?.roles) ? decoded.realm_access.roles : []),
-              ...(Array.isArray(decoded.roles) ? decoded.roles : []),
-              ...(typeof decoded.role === 'string' ? [decoded.role] : []),
-            ];
+            const decoded = jwtDecode<KeycloakJwtPayload>(res.access_token);
+            const rawRoles = new Set<string>();
 
-            const normalizedRoles = Array.from(
-              new Set(rawRoles.map((r) => this.normalizeRole(r)).filter(Boolean)),
-            );
+            if (decoded.role) rawRoles.add(decoded.role);
+            if (Array.isArray(decoded.roles)) {
+              decoded.roles.forEach((r) => rawRoles.add(r));
+            }
+            if (decoded.realm_access && Array.isArray(decoded.realm_access.roles)) {
+              decoded.realm_access.roles.forEach((r) => rawRoles.add(r));
+            }
+            if (decoded.resource_access) {
+              Object.values(decoded.resource_access).forEach((clientAccess) => {
+                if (Array.isArray(clientAccess?.roles)) {
+                  clientAccess.roles.forEach((r) => rawRoles.add(r));
+                }
+              });
+            }
 
-            // Se l'utente è ginogipsy o admin e Keycloak non ha ancora mappato ruoli custom, garantiamo ROLE_ADMIN
+            const normalizedRoles = Array.from(rawRoles)
+              .map((r) => this.normalizeRole(r))
+              .filter(Boolean);
+
             const username = decoded.preferred_username || decoded.sub || '';
+            const email = decoded.email || '';
+
             if (
               normalizedRoles.length === 0 &&
               (username === 'ginogipsy' || username === 'admin')
@@ -68,6 +87,7 @@ export class Auth {
             localStorage.setItem('role', primaryRole);
             localStorage.setItem('roles', JSON.stringify(normalizedRoles));
             localStorage.setItem('username', username);
+            localStorage.setItem('email', email);
             if (decoded.standId) {
               localStorage.setItem('standId', String(decoded.standId));
             } else {
@@ -92,6 +112,16 @@ export class Auth {
     return role;
   }
 
+  private decodeCurrentToken(): KeycloakJwtPayload | null {
+    const token = this.getToken();
+    if (!token) return null;
+    try {
+      return jwtDecode<KeycloakJwtPayload>(token);
+    } catch {
+      return null;
+    }
+  }
+
   getToken(): string | null {
     if (typeof window !== 'undefined' && window.localStorage) {
       return localStorage.getItem('token');
@@ -105,9 +135,20 @@ export class Auth {
 
   getUsername(): string {
     if (typeof window !== 'undefined' && window.localStorage) {
-      return localStorage.getItem('username') || 'Utente';
+      const stored = localStorage.getItem('username');
+      if (stored) return stored;
     }
-    return 'Utente';
+    const decoded = this.decodeCurrentToken();
+    return decoded?.preferred_username || decoded?.sub || 'Utente';
+  }
+
+  getUserEmail(): string {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const stored = localStorage.getItem('email');
+      if (stored) return stored;
+    }
+    const decoded = this.decodeCurrentToken();
+    return decoded?.email || '';
   }
 
   getUserRole(): string {
@@ -185,6 +226,7 @@ export class Auth {
       localStorage.removeItem('role');
       localStorage.removeItem('roles');
       localStorage.removeItem('username');
+      localStorage.removeItem('email');
       localStorage.removeItem('standId');
     }
   }

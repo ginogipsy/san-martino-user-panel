@@ -21,6 +21,14 @@ export interface Owner {
   role: OwnerRole;
 }
 
+export interface OwnerCreate {
+  firstName: string;
+  lastName: string;
+  email?: string;
+  phone?: string;
+  role: OwnerRole;
+}
+
 export interface MenuItem {
   id: string;
   standId: string;
@@ -117,6 +125,18 @@ export class Food {
 
   deleteMenuItem(standId: string, itemId: string): Observable<void> {
     return this.http.delete<void>(`${this.STANDS_URL}/${standId}/menu-items/${itemId}`);
+  }
+
+  listOwners(standId: string): Observable<Owner[]> {
+    return this.http.get<Owner[]>(`${this.STANDS_URL}/${standId}/owners`);
+  }
+
+  addOwner(standId: string, owner: OwnerCreate): Observable<Owner> {
+    return this.http.post<Owner>(`${this.STANDS_URL}/${standId}/owners`, owner);
+  }
+
+  deleteOwner(standId: string, ownerId: string): Observable<void> {
+    return this.http.delete<void>(`${this.STANDS_URL}/${standId}/owners/${ownerId}`);
   }
 
   /**
