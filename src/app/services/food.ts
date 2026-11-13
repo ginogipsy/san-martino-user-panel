@@ -84,6 +84,10 @@ export class Food {
   private readonly http = inject(HttpClient);
   private readonly STANDS_URL = environment.standsUrl;
 
+  getPublicConfig(): Observable<{ googleMapsApiKey?: string }> {
+    return this.http.get<{ googleMapsApiKey?: string }>("/api/config/public");
+  }
+
   listStands(): Observable<StandSummary[]> {
     return this.http.get<StandSummary[]>(this.STANDS_URL);
   }

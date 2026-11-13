@@ -1,13 +1,10 @@
 import {
   Component,
   computed,
-  ElementRef,
   inject,
-  OnDestroy,
   OnInit,
   PLATFORM_ID,
   signal,
-  ViewChild,
 } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import {
@@ -17,6 +14,7 @@ import {
   ReactiveFormsModule,
   Validators,
 } from '@angular/forms';
+import { GoogleMapsModule } from '@angular/google-maps';
 import {
   Food,
   MenuItem,
@@ -30,21 +28,20 @@ import {
 } from '../../services/food';
 import { Auth } from '../../services/auth';
 import { Navbar } from '../navbar/navbar';
+import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-admin-stand',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule, Navbar],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, GoogleMapsModule, Navbar],
   templateUrl: './admin-stand.html',
   styleUrl: './admin-stand.css',
 })
-export class AdminStand implements OnInit, OnDestroy {
+export class AdminStand implements OnInit {
   private fb = inject(FormBuilder);
   private foodService = inject(Food);
   public authService = inject(Auth);
   private platformId = inject(PLATFORM_ID);
-
-  @ViewChild('standMapContainer') standMapContainer?: ElementRef<HTMLDivElement>;
 
   stands = signal<StandSummary[]>([]);
   selectedStand = signal<StandDetail | null>(null);
@@ -57,12 +54,24 @@ export class AdminStand implements OnInit, OnDestroy {
   savingOwner = signal(false);
   feedbackMessage = signal<{ type: 'success' | 'error'; text: string } | null>(null);
 
+  // Google Maps state
+  googleMapsReady = signal(false);
+  googleMapsError = signal<string | null>(null);
+  apiKeyInput = signal('');
   mapSearchQuery = signal('');
   searchingAddress = signal(false);
 
-  private leafletLib: any = null;
-  private mapInstance: any = null;
-  private mapMarker: any = null;
+  mapCenter = signal<google.maps.LatLngLiteral>({ lat: 41.5822, lng: 13.5775 });
+  markerPosition = signal<google.maps.LatLngLiteral>({ lat: 41.5822, lng: 13.5775 });
+  mapZoom = signal(18);
+
+  mapOptions: google.maps.MapOptions = {
+    mapTypeId: 'hybrid',
+    streetViewControl: true,
+    fullscreenControl: true,
+    mapTypeControl: true,
+    zoomControl: true,
+  };
 
   /**
    * Un utente può modificare la cantina se:
@@ -108,6 +117,11 @@ export class AdminStand implements OnInit, OnDestroy {
     });
   });
 
+  markerOptions = computed<google.maps.MarkerOptions>(() => ({
+    draggable: this.canEditSelectedStand(),
+    title: this.selectedStand()?.name || 'Posizione Cantina',
+  }));
+
   standForm: FormGroup = this.fb.group({
     number: [1, [Validators.required, Validators.min(1), Validators.max(999)]],
     name: ['', [Validators.required, Validators.maxLength(200)]],
@@ -139,11 +153,88 @@ export class AdminStand implements OnInit, OnDestroy {
   });
 
   ngOnInit() {
+    this.initGoogleMapsLoader();
     this.loadStands();
   }
 
-  ngOnDestroy() {
-    this.destroyMap();
+  private initGoogleMapsLoader() {
+    if (!isPlatformBrowser(this.platformId)) {
+      return;
+    }
+    const storedKey =
+      typeof window !== 'undefined' &&
+      window.localStorage &&
+      typeof window.localStorage.getItem === 'function'
+        ? window.localStorage.getItem('google_maps_api_key') || ''
+        : '';
+    const localKey = (environment.googleMapsApiKey || storedKey).trim();
+
+    this.foodService.getPublicConfig().subscribe({
+      next: (cfg) => {
+        const vaultKey = (cfg?.googleMapsApiKey || '').trim();
+        const activeKey = vaultKey || localKey;
+        if (activeKey) {
+          this.apiKeyInput.set(activeKey);
+          this.loadGoogleMapsScript(activeKey);
+        }
+      },
+      error: () => {
+        if (localKey) {
+          this.apiKeyInput.set(localKey);
+          this.loadGoogleMapsScript(localKey);
+        }
+      },
+    });
+  }
+
+  saveGoogleMapsApiKey() {
+    if (!isPlatformBrowser(this.platformId)) return;
+    const key = this.apiKeyInput().trim();
+    if (!key) {
+      this.showFeedback('error', 'Inserisci una Google Maps API Key valida.');
+      return;
+    }
+    if (typeof window !== 'undefined' && window.localStorage && typeof window.localStorage.setItem === 'function') localStorage.setItem('google_maps_api_key', key);
+    this.googleMapsError.set(null);
+    this.loadGoogleMapsScript(key);
+  }
+
+  private loadGoogleMapsScript(apiKey: string) {
+    if (!isPlatformBrowser(this.platformId)) return;
+
+    if ((window as any).google?.maps) {
+      this.googleMapsReady.set(true);
+      return;
+    }
+
+    const existingScript = document.getElementById('google-maps-sdk-script');
+    if (existingScript) {
+      existingScript.remove();
+    }
+
+    (window as any).gm_authFailure = () => {
+      this.googleMapsReady.set(false);
+      this.googleMapsError.set(
+        'API Key Google Maps rifiutata o Maps JavaScript API non abilitata sul progetto Google Cloud.',
+      );
+    };
+
+    const script = document.createElement('script');
+    script.id = 'google-maps-sdk-script';
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&libraries=places,geocoding&language=it&region=IT`;
+    script.async = true;
+    script.defer = true;
+    script.onload = () => {
+      if ((window as any).google?.maps) {
+        this.googleMapsReady.set(true);
+        this.googleMapsError.set(null);
+      }
+    };
+    script.onerror = () => {
+      this.googleMapsReady.set(false);
+      this.googleMapsError.set('Impossibile caricare lo script di Google Maps.');
+    };
+    document.head.appendChild(script);
   }
 
   loadStands(selectStandId?: string) {
@@ -188,7 +279,7 @@ export class AdminStand implements OnInit, OnDestroy {
         });
         this.syncFormEditState();
         this.resetMenuItemForm();
-        setTimeout(() => this.initOrUpdateMap(detail.latitude, detail.longitude), 60);
+        this.setMapCoords(detail.latitude, detail.longitude);
       },
       error: () => {
         this.showFeedback('error', 'Errore nel caricamento del dettaglio cantina.');
@@ -216,7 +307,7 @@ export class AdminStand implements OnInit, OnDestroy {
       longitude: 13.5775,
     });
     this.syncFormEditState();
-    setTimeout(() => this.initOrUpdateMap(41.5822, 13.5775), 60);
+    this.setMapCoords(41.5822, 13.5775);
   }
 
   private syncFormEditState() {
@@ -225,85 +316,33 @@ export class AdminStand implements OnInit, OnDestroy {
     } else {
       this.standForm.disable({ emitEvent: false });
     }
-    this.updateMarkerInteractivity();
   }
 
-  private async initOrUpdateMap(lat: number, lng: number) {
-    if (!isPlatformBrowser(this.platformId)) {
-      return;
-    }
-    const container = this.standMapContainer?.nativeElement;
-    if (!container) {
-      return;
-    }
-
-    if (!this.leafletLib) {
-      const mod = await import('leaflet');
-      this.leafletLib = (mod as any).default || mod;
-    }
-    const L = this.leafletLib;
-
+  private setMapCoords(lat: number, lng: number) {
     const validLat = Number.isFinite(lat) ? lat : 41.5822;
     const validLng = Number.isFinite(lng) ? lng : 13.5775;
-
-    if (!this.mapInstance) {
-      this.mapInstance = L.map(container, {
-        center: [validLat, validLng],
-        zoom: 17,
-      });
-
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-        attribution: '© OpenStreetMap contributors',
-      }).addTo(this.mapInstance);
-
-      const customIcon = L.divIcon({
-        className: 'stand-map-pin',
-        html: '<div style="font-size:28px;line-height:28px;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.45));">🍷</div>',
-        iconSize: [28, 28],
-        iconAnchor: [14, 24],
-      });
-
-      this.mapMarker = L.marker([validLat, validLng], {
-        draggable: this.canEditSelectedStand(),
-        icon: customIcon,
-      }).addTo(this.mapInstance);
-
-      this.mapMarker.on('dragend', () => {
-        if (!this.canEditSelectedStand()) return;
-        const pos = this.mapMarker.getLatLng();
-        this.applyCoordinatesFromMap(pos.lat, pos.lng);
-      });
-
-      this.mapInstance.on('click', (e: any) => {
-        if (!this.canEditSelectedStand()) return;
-        const { lat: clickedLat, lng: clickedLng } = e.latlng;
-        this.mapMarker.setLatLng([clickedLat, clickedLng]);
-        this.applyCoordinatesFromMap(clickedLat, clickedLng);
-      });
-    } else {
-      this.mapInstance.setView([validLat, validLng], 17);
-      if (this.mapMarker) {
-        this.mapMarker.setLatLng([validLat, validLng]);
-      }
-      this.mapInstance.invalidateSize();
-    }
-
-    this.updateMarkerInteractivity();
+    this.mapCenter.set({ lat: validLat, lng: validLng });
+    this.markerPosition.set({ lat: validLat, lng: validLng });
   }
 
-  private updateMarkerInteractivity() {
-    if (!this.mapMarker?.dragging) return;
-    if (this.canEditSelectedStand()) {
-      this.mapMarker.dragging.enable();
-    } else {
-      this.mapMarker.dragging.disable();
-    }
+  onGoogleMapClick(event: google.maps.MapMouseEvent) {
+    if (!this.canEditSelectedStand() || !event.latLng) return;
+    const lat = event.latLng.lat();
+    const lng = event.latLng.lng();
+    this.applyCoordinatesFromMap(lat, lng);
+  }
+
+  onGoogleMarkerDragEnd(event: google.maps.MapMouseEvent) {
+    if (!this.canEditSelectedStand() || !event.latLng) return;
+    const lat = event.latLng.lat();
+    const lng = event.latLng.lng();
+    this.applyCoordinatesFromMap(lat, lng);
   }
 
   private applyCoordinatesFromMap(lat: number, lng: number) {
     const roundedLat = Number(lat.toFixed(6));
     const roundedLng = Number(lng.toFixed(6));
+    this.markerPosition.set({ lat: roundedLat, lng: roundedLng });
     this.standForm.patchValue({
       latitude: roundedLat,
       longitude: roundedLng,
@@ -314,31 +353,26 @@ export class AdminStand implements OnInit, OnDestroy {
     const query = this.mapSearchQuery().trim();
     if (!query || !isPlatformBrowser(this.platformId)) return;
 
-    this.searchingAddress.set(true);
-    const fullQuery = query.toLowerCase().includes('arce') ? query : `${query}, Arce, Italia`;
-    const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(fullQuery)}`;
+    const fullQuery = query.toLowerCase().includes('arce') ? query : `${query}, Arce (FR), Italia`;
 
-    fetch(url, { headers: { Accept: 'application/json' } })
-      .then((r) => r.json())
-      .then((results: any[]) => {
+    if (this.googleMapsReady() && (window as any).google?.maps?.Geocoder) {
+      this.searchingAddress.set(true);
+      const geocoder = new google.maps.Geocoder();
+      geocoder.geocode({ address: fullQuery }, (results, status) => {
         this.searchingAddress.set(false);
-        if (Array.isArray(results) && results.length > 0) {
-          const lat = parseFloat(results[0].lat);
-          const lng = parseFloat(results[0].lon);
-          if (Number.isFinite(lat) && Number.isFinite(lng)) {
-            if (this.canEditSelectedStand()) {
-              this.applyCoordinatesFromMap(lat, lng);
-            }
-            this.initOrUpdateMap(lat, lng);
+        if (status === 'OK' && results && results[0]?.geometry?.location) {
+          const loc = results[0].geometry.location;
+          const lat = loc.lat();
+          const lng = loc.lng();
+          this.mapCenter.set({ lat, lng });
+          if (this.canEditSelectedStand()) {
+            this.applyCoordinatesFromMap(lat, lng);
           }
         } else {
-          this.showFeedback('error', 'Indirizzo non trovato sulla mappa.');
+          this.showFeedback('error', 'Indirizzo non trovato tramite Google Geocoding.');
         }
-      })
-      .catch(() => {
-        this.searchingAddress.set(false);
-        this.showFeedback('error', 'Errore durante la ricerca indirizzo sulla mappa.');
       });
+    }
   }
 
   getGoogleMapsUrl(): string {
@@ -346,14 +380,6 @@ export class AdminStand implements OnInit, OnDestroy {
     const lat = raw.latitude ?? 41.5822;
     const lng = raw.longitude ?? 13.5775;
     return `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
-  }
-
-  private destroyMap() {
-    if (this.mapInstance) {
-      this.mapInstance.remove();
-      this.mapInstance = null;
-      this.mapMarker = null;
-    }
   }
 
   saveStand() {
