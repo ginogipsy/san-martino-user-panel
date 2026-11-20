@@ -10,6 +10,25 @@ export interface LocalizedText {
 
 export type MenuKind = 'FOOD' | 'DRINK';
 export type OwnerRole = 'PRIMARY' | 'SECONDARY';
+export type ReviewTargetType = 'STAND' | 'MENU_ITEM' | 'EVENT';
+export type ReviewStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+export interface FestivalReview {
+  id: string;
+  targetType: ReviewTargetType;
+  targetId: string;
+  standId?: string;
+  targetName?: string;
+  authorUsername: string;
+  rating: number;
+  comment?: string;
+  status: ReviewStatus;
+  moderatedBy?: string;
+  moderationNote?: string;
+  moderatedAt?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
 
 export interface Owner {
   id: string;
@@ -141,6 +160,31 @@ export class Food {
 
   deleteOwner(standId: string, ownerId: string): Observable<void> {
     return this.http.delete<void>(`${this.STANDS_URL}/${standId}/owners/${ownerId}`);
+  }
+
+  listReviews(options?: {
+    targetType?: ReviewTargetType;
+    targetId?: string;
+    standId?: string;
+    status?: ReviewStatus;
+  }): Observable<FestivalReview[]> {
+    let params = new HttpParams();
+    if (options?.targetType) params = params.set('targetType', options.targetType);
+    if (options?.targetId) params = params.set('targetId', options.targetId);
+    if (options?.standId) params = params.set('standId', options.standId);
+    if (options?.status) params = params.set('status', options.status);
+    return this.http.get<FestivalReview[]>(`${this.STANDS_URL}/reviews`, { params });
+  }
+
+  moderateReview(
+    reviewId: string,
+    status: 'APPROVED' | 'REJECTED',
+    moderationNote?: string,
+  ): Observable<FestivalReview> {
+    return this.http.put<FestivalReview>(`${this.STANDS_URL}/reviews/${reviewId}/moderation`, {
+      status,
+      moderationNote: moderationNote?.trim() || undefined,
+    });
   }
 
   /**
