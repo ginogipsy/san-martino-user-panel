@@ -27,6 +27,27 @@
   </section>
 
   <section class="cards-grid">
+    <article class="menu-card card-stands">
+      <div class="card-icon">⚡</div>
+      <div class="card-body">
+        <div class="card-header-row">
+          <h2>Pulsantiera 10 Slot &amp; Coda Ordini</h2>
+          <span class="badge badge-owner">Cassa • Cucina • Consegna</span>
+        </div>
+        <p>
+          Opera sulla postazione <strong>Cassa</strong>, <strong>Cucina</strong> o
+          <strong>Consegna (Bancone)</strong>, monitora il tabellone ordini live sincronizzato con
+          le <strong>3 schede ESP32 e i 5 display TM1637</strong>, oppure assegna i permessi di
+          postazione ai tuoi collaboratori.
+        </p>
+      </div>
+      <div class="card-actions">
+        <a routerLink="/pulsantiera" class="btn-card btn-success">
+          Apri Pulsantiera &amp; Postazioni →
+        </a>
+      </div>
+    </article>
+
     @if (authService.canManageEvents()) {
       <article class="menu-card card-events">
         <div class="card-icon">📅</div>
