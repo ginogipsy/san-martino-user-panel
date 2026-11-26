@@ -48,6 +48,12 @@ export class Keypad implements OnInit, OnDestroy {
   slotDraftMenuItemIds: Record<number, string> = {};
   newStaffUsername = '';
   newStaffRole: StandStaffRole = 'CASHIER';
+  espStationRole: 'CASHIER' | 'KITCHEN' | 'DELIVERY' = 'DELIVERY';
+  espWifiSsid = 'SAN_MARTINO_STAFF_WIFI';
+  espWifiPass = 'sanmartino-password';
+  espApiBaseUrl = 'http://192.168.1.100:8082/v1/stands';
+  isFlashingEsp = false;
+  espFlashLog = '';
   keycloakUsers: { username: string; email: string; displayName: string }[] = [];
 
   private pollTimer: ReturnType<typeof setInterval> | null = null;
@@ -555,5 +561,129 @@ export class Keypad implements OnInit, OnDestroy {
         this.cdr.detectChanges();
       },
     });
+  }
+
+  async flashEsp32ViaUsb(): Promise<void> {
+    if (!this.keypadState) return;
+    const nav = navigator as unknown as {
+      serial?: {
+        requestPort: () => Promise<{
+          open: (opts: { baudRate: number }) => Promise<void>;
+          close: () => Promise<void>;
+          writable?: WritableStream<Uint8Array>;
+          readable?: ReadableStream<Uint8Array>;
+        }>;
+      };
+    };
+
+    if (!nav.serial) {
+      this.errorMessage =
+        'Il tuo browser non supporta Web Serial API (usa Chrome o Edge su PC con cavo USB collegato alla ESP32, oppure clicca "Scarica Firmware .ino").';
+      this.cdr.detectChanges();
+      return;
+    }
+
+    this.isFlashingEsp = true;
+    this.errorMessage = '';
+    this.successMessage = '';
+    this.espFlashLog = 'Seleziona la porta USB della scheda ESP32...';
+    this.cdr.detectChanges();
+
+    try {
+      const port = await nav.serial.requestPort();
+      await port.open({ baudRate: 115200 });
+      this.espFlashLog = 'Porta USB aperta a 115200 baud. Invio configurazione NVS alla ESP32...';
+      this.cdr.detectChanges();
+
+      const payload = JSON.stringify({
+        stationRole: this.espStationRole,
+        wifiSsid: this.espWifiSsid.trim(),
+        wifiPass: this.espWifiPass,
+        apiBaseUrl: this.espApiBaseUrl.trim(),
+        standId: this.keypadState.standId,
+        deviceToken: this.keypadState.deviceToken || '',
+      });
+
+      const encoder = new TextEncoder();
+      const writer = port.writable?.getWriter();
+      if (writer) {
+        await writer.write(encoder.encode(`PROVISION:${payload}\n`));
+        writer.releaseLock();
+      }
+
+      let responseText = '';
+      if (port.readable) {
+        const reader = port.readable.getReader();
+        const decoder = new TextDecoder();
+        const start = Date.now();
+        while (Date.now() - start < 2500) {
+          const { value, done } = await Promise.race([
+            reader.read(),
+            new Promise<{ value?: Uint8Array; done: boolean }>((resolve) =>
+              setTimeout(() => resolve({ done: true }), 1800),
+            ),
+          ]);
+          if (value) {
+            responseText += decoder.decode(value);
+            if (responseText.includes('PROVISION_OK') || responseText.includes('PROVISION_ERR')) {
+              break;
+            }
+          }
+          if (done) break;
+        }
+        reader.releaseLock();
+      }
+
+      await port.close();
+      this.isFlashingEsp = false;
+      this.espFlashLog = responseText.trim() || 'Configurazione inviata e salvata in memoria Flash NVS! Riavvio ESP32 completato.';
+      this.successMessage = `Dispositivo ESP32 (${this.espStationRole}) configurato via USB per la cantina #${this.keypadState.standNumber}!`;
+      this.cdr.detectChanges();
+    } catch (err: unknown) {
+      this.isFlashingEsp = false;
+      const msg = err instanceof Error ? err.message : 'Connessione USB annullata o fallita.';
+      this.espFlashLog = `Errore USB: ${msg}`;
+      this.errorMessage = `Impossibile caricare via USB: ${msg}`;
+      this.cdr.detectChanges();
+    }
+  }
+
+  downloadCustomInoFirmware(): void {
+    if (!this.keypadState || !isPlatformBrowser(this.platformId)) return;
+    const role = this.espStationRole;
+    const ssid = this.espWifiSsid.trim();
+    const pass = this.espWifiPass;
+    const api = this.espApiBaseUrl.trim();
+    const standId = this.keypadState.standId;
+    const token = this.keypadState.deviceToken || '';
+    const slotsComment = this.keypadState.slots
+      .map((s) => `//   Slot ${s.slotNumber.toString().padStart(2, ' ')}: ${s.menuItemName || '(Libero)'} [${s.kind || '-'}]`)
+      .join('\n');
+
+    const content = `// =============================================================================
+// FIRMWARE PRE-CONFIGURATO GENERATO DAL PANNELLO CANTINA #${this.keypadState.standNumber} (${this.keypadState.standName})
+// Postazione: ${role}
+// Mappatura 10 Slot corrente:
+${slotsComment}
+// =============================================================================
+// Carica questo file con Arduino IDE sulla scheda ESP32 oppure usa il pulsante
+// "Carica su Dispositivo (USB)" direttamente dal browser Chrome/Edge.
+
+const char* DEFAULT_STATION_ROLE = "${role}";
+const char* DEFAULT_WIFI_SSID    = "${ssid}";
+const char* DEFAULT_WIFI_PASS    = "${pass}";
+const char* DEFAULT_API_BASE_URL = "${api}";
+const char* DEFAULT_STAND_ID     = "${standId}";
+const char* DEFAULT_DEVICE_TOKEN = "${token}";
+`;
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `esp32_cantina_${this.keypadState.standNumber}_${role.toLowerCase()}_config.h`;
+    a.click();
+    URL.revokeObjectURL(url);
+    this.successMessage = `File di configurazione firmware per ${role} scaricato!`;
+    this.cdr.detectChanges();
   }
 }

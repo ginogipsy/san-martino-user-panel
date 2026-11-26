@@ -710,11 +710,12 @@
 
             <hr class="config-divider" />
 
-            <h3>🔌 Credenziali Hardware 3x ESP32 (Cassa, Cucina, Consegna)</h3>
+            <h3>🔌 Provisioning &amp; Caricamento su Scheda ESP32 (Cassa, Cucina, Consegna)</h3>
             <p class="panel-sub">
-              Inserisci questi parametri nel firmware
-              <code>iot/esp32-stand-keypad/esp32_stand_keypad.ino</code> delle 3 schede ESP32 della
-              cantina:
+              Collega una scheda ESP32 via cavo USB e premi <strong>⚡ Carica su Dispositivo (USB)</strong>
+              per flashare nella memoria NVS della scheda la postazione, il Wi-Fi, il token e i 10 slot
+              della cantina <strong>#{{ keypadState.standNumber }} {{ keypadState.standName }}</strong>
+              senza aprire Arduino IDE:
             </p>
             <div class="esp32-credentials-box">
               <div>
@@ -726,14 +727,62 @@
                 <code>{{ keypadState.deviceToken || '—' }}</code>
               </div>
             </div>
-            <button
-              type="button"
-              class="btn-regen-token"
-              [disabled]="isSubmitting"
-              (click)="saveSlotsConfiguration(true)"
-            >
-              🔑 Rigenera Device Token ESP32
-            </button>
+
+            <div class="slots-config-list">
+              <div class="slot-config-row">
+                <span class="slot-config-label">Postazione ESP32:</span>
+                <select [(ngModel)]="espStationRole" class="slot-config-select">
+                  <option value="CASHIER">🧾 ESP32 #1 — Postazione CASSA</option>
+                  <option value="KITCHEN">🍳 ESP32 #2 — Postazione CUCINA</option>
+                  <option value="DELIVERY">🛎️ ESP32 #3 — Postazione CONSEGNA</option>
+                </select>
+              </div>
+              <div class="slot-config-row">
+                <span class="slot-config-label">Wi-Fi SSID:</span>
+                <input type="text" [(ngModel)]="espWifiSsid" class="slot-config-select" placeholder="SSID Wi-Fi Cantina" />
+              </div>
+              <div class="slot-config-row">
+                <span class="slot-config-label">Wi-Fi Password:</span>
+                <input type="password" [(ngModel)]="espWifiPass" class="slot-config-select" placeholder="Password Wi-Fi" />
+              </div>
+              <div class="slot-config-row">
+                <span class="slot-config-label">URL Backend API:</span>
+                <input type="text" [(ngModel)]="espApiBaseUrl" class="slot-config-select" placeholder="http://192.168.1.100:8082/v1/stands" />
+              </div>
+            </div>
+
+            @if (espFlashLog) {
+              <div class="esp32-credentials-box">
+                <code>{{ espFlashLog }}</code>
+              </div>
+            }
+
+            <div class="config-actions-row">
+              <button
+                type="button"
+                class="btn-save-slots"
+                [disabled]="isSubmitting || isFlashingEsp"
+                (click)="flashEsp32ViaUsb()"
+              >
+                {{ isFlashingEsp ? '⏳ Connessione USB in corso...' : '⚡ Carica su Dispositivo (USB)' }}
+              </button>
+              <button
+                type="button"
+                class="btn-regen-token"
+                [disabled]="isSubmitting"
+                (click)="downloadCustomInoFirmware()"
+              >
+                📥 Scarica Config Firmware (.h)
+              </button>
+              <button
+                type="button"
+                class="btn-regen-token"
+                [disabled]="isSubmitting"
+                (click)="saveSlotsConfiguration(true)"
+              >
+                🔑 Rigenera Token ESP32
+              </button>
+            </div>
           </div>
         </div>
       </section>
