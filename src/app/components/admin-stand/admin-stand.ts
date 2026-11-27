@@ -26,6 +26,7 @@ import {
   StandDetail,
   StandSummary,
 } from '../../services/food';
+import { EventsService, FestivalEvent } from '../../services/events';
 import { Auth } from '../../services/auth';
 import { Navbar } from '../navbar/navbar';
 import { environment } from '../../../environments/environment';
@@ -40,11 +41,18 @@ import { environment } from '../../../environments/environment';
 export class AdminStand implements OnInit {
   private fb = inject(FormBuilder);
   private foodService = inject(Food);
+  private eventsService = inject(EventsService);
   public authService = inject(Auth);
   private platformId = inject(PLATFORM_ID);
 
+  events = signal<FestivalEvent[]>([]);
+  selectedEventId = signal<string>('11111111-1111-1111-1111-000000002026');
+
   stands = signal<StandSummary[]>([]);
   selectedStand = signal<StandDetail | null>(null);
+  historicalCatalog = signal<MenuItem[]>([]);
+  selectedHistoricalItemId = signal<string>('');
+  selectedCanonicalItemId = signal<string | undefined>(undefined);
   isCreatingStand = signal(false);
   editingMenuItemId = signal<string | null>(null);
 
@@ -53,6 +61,10 @@ export class AdminStand implements OnInit {
   savingMenuItem = signal(false);
   savingOwner = signal(false);
   feedbackMessage = signal<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  selectedEvent = computed<FestivalEvent | undefined>(() =>
+    this.events().find((e) => e.id === this.selectedEventId()),
+  );
 
   // Google Maps state (caricata solo on-demand quando si apre il box posizione)
   showLocationEditor = signal(false);
@@ -118,6 +130,31 @@ export class AdminStand implements OnInit {
     });
   });
 
+  isSelectedStandParticipatingInCurrentEvent = computed(() => {
+    const stand = this.selectedStand();
+    const eventId = this.selectedEventId();
+    if (!stand || !eventId) return false;
+    return (stand.participatingEventIds || []).includes(eventId);
+  });
+
+  reusableHistoricalItems = computed<MenuItem[]>(() => {
+    const currentStand = this.selectedStand();
+    const currentNames = new Set(
+      (currentStand?.menuItems || []).map((m) => `${m.kind}::${m.name.trim().toLowerCase()}`),
+    );
+    const seen = new Set<string>();
+    const results: MenuItem[] = [];
+    for (const item of this.historicalCatalog()) {
+      const key = `${item.kind}::${item.name.trim().toLowerCase()}`;
+      if (currentNames.has(key) || seen.has(key)) {
+        continue;
+      }
+      seen.add(key);
+      results.push(item);
+    }
+    return results;
+  });
+
   markerOptions = computed<google.maps.MarkerOptions>(() => ({
     draggable: this.canEditSelectedStand(),
     title: this.selectedStand()?.name || 'Posizione Cantina',
@@ -154,7 +191,48 @@ export class AdminStand implements OnInit {
   });
 
   ngOnInit() {
+    this.loadEvents();
     this.loadStands();
+  }
+
+  loadEvents() {
+    this.eventsService.listEvents().subscribe({
+      next: (list) => {
+        const sorted = [...list].sort((a, b) =>
+          (b.startDate || '').localeCompare(a.startDate || ''),
+        );
+        this.events.set(sorted);
+        if (sorted.length > 0 && !sorted.some((e) => e.id === this.selectedEventId())) {
+          const upcoming = sorted.find((e) => e.status === 'UPCOMING') || sorted[0];
+          this.selectedEventId.set(upcoming.id);
+          this.loadStands(this.selectedStand()?.id);
+        }
+      },
+      error: () => {
+        // fallback al default 2026
+      },
+    });
+  }
+
+  selectEvent(eventId: string) {
+    if (!eventId || eventId === this.selectedEventId()) return;
+    this.selectedEventId.set(eventId);
+    this.loadStands(this.selectedStand()?.id);
+  }
+
+  isStandParticipatingInSelectedEvent(stand: StandSummary): boolean {
+    const eventId = this.selectedEventId();
+    if (!eventId || !stand.participatingEventIds) return true;
+    return stand.participatingEventIds.includes(eventId);
+  }
+
+  getEventLabel(eventId: string): string {
+    const found = this.events().find((e) => e.id === eventId);
+    if (found) {
+      const year = found.startDate ? found.startDate.slice(0, 4) : '';
+      return year ? `${year} — ${found.name}` : found.name;
+    }
+    return eventId.slice(-4);
   }
 
   toggleLocationEditor() {
@@ -247,7 +325,7 @@ export class AdminStand implements OnInit {
 
   loadStands(selectStandId?: string) {
     this.loading.set(true);
-    this.foodService.listStands().subscribe({
+    this.foodService.listStands(this.selectedEventId(), true).subscribe({
       next: (list) => {
         const sorted = [...list].sort((a, b) => a.number - b.number);
         this.stands.set(sorted);
@@ -274,7 +352,8 @@ export class AdminStand implements OnInit {
     this.isCreatingStand.set(false);
     this.showLocationEditor.set(false);
     this.editingMenuItemId.set(null);
-    this.foodService.getStand(standId).subscribe({
+    const activeEventId = this.selectedEventId();
+    this.foodService.getStand(standId, activeEventId).subscribe({
       next: (detail) => {
         this.selectedStand.set(detail);
         this.standForm.patchValue({
@@ -289,9 +368,84 @@ export class AdminStand implements OnInit {
         this.syncFormEditState();
         this.resetMenuItemForm();
         this.setMapCoords(detail.latitude, detail.longitude);
+        this.loadHistoricalCatalog(standId);
       },
       error: () => {
         this.showFeedback('error', 'Errore nel caricamento del dettaglio cantina.');
+      },
+    });
+  }
+
+  loadHistoricalCatalog(standId: string) {
+    this.foodService.listMenuItems(standId, undefined, undefined, true).subscribe({
+      next: (items) => {
+        this.historicalCatalog.set(items);
+      },
+      error: () => {
+        this.historicalCatalog.set([]);
+      },
+    });
+  }
+
+  enrollStandInSelectedEvent() {
+    const current = this.selectedStand();
+    const eventId = this.selectedEventId();
+    if (!current || !eventId || !this.canEditSelectedStand()) return;
+
+    const raw = this.standForm.getRawValue();
+    const payload: StandCreate = {
+      number: Number(raw.number || current.number),
+      name: raw.name || current.name,
+      description: {
+        it: raw.descriptionIt || current.description?.it || '',
+        en: raw.descriptionEn || current.description?.en || '',
+      },
+      firstParticipationYear: Number(raw.firstParticipationYear || current.firstParticipationYear),
+      latitude: Number(raw.latitude ?? current.latitude),
+      longitude: Number(raw.longitude ?? current.longitude),
+      eventId,
+    };
+
+    this.savingStand.set(true);
+    this.foodService.upsertStandEditionParticipation(current.id, eventId, payload).subscribe({
+      next: (updated) => {
+        this.savingStand.set(false);
+        this.selectedStand.set(updated);
+        this.showFeedback(
+          'success',
+          `Cantina "${updated.name}" iscritta all'edizione selezionata.`,
+        );
+        this.loadStands(updated.id);
+      },
+      error: () => {
+        this.savingStand.set(false);
+        this.showFeedback('error', "Errore durante l'iscrizione della cantina all'edizione.");
+      },
+    });
+  }
+
+  removeStandFromSelectedEvent() {
+    const current = this.selectedStand();
+    const eventId = this.selectedEventId();
+    if (!current || !eventId || !this.authService.isAdmin()) return;
+    if (
+      !confirm(
+        `Vuoi rimuovere la partecipazione di "${current.name}" da questa edizione? L'anagrafica storica della cantina e le altre edizioni resteranno intatte.`,
+      )
+    ) {
+      return;
+    }
+
+    this.savingStand.set(true);
+    this.foodService.deleteStandEditionParticipation(current.id, eventId).subscribe({
+      next: () => {
+        this.savingStand.set(false);
+        this.showFeedback('success', 'Partecipazione rimossa da questa edizione.');
+        this.loadStands(current.id);
+      },
+      error: () => {
+        this.savingStand.set(false);
+        this.showFeedback('error', 'Errore durante la rimozione della partecipazione.');
       },
     });
   }
@@ -327,7 +481,7 @@ export class AdminStand implements OnInit {
     }
   }
 
-  private setMapCoords(lat: number, lng: number) {
+  setMapCoords(lat: number, lng: number) {
     const validLat = Number.isFinite(lat) ? lat : 41.5822;
     const validLng = Number.isFinite(lng) ? lng : 13.5775;
     this.mapCenter.set({ lat: validLat, lng: validLng });
@@ -399,6 +553,7 @@ export class AdminStand implements OnInit {
     if (this.standForm.invalid) return;
 
     const raw = this.standForm.getRawValue();
+    const activeEventId = this.selectedEventId();
     const payload: StandCreate = {
       number: Number(raw.number),
       name: raw.name,
@@ -409,6 +564,7 @@ export class AdminStand implements OnInit {
       firstParticipationYear: Number(raw.firstParticipationYear),
       latitude: Number(raw.latitude),
       longitude: Number(raw.longitude),
+      eventId: activeEventId,
     };
 
     this.savingStand.set(true);
@@ -428,11 +584,11 @@ export class AdminStand implements OnInit {
         },
       });
     } else {
-      this.foodService.updateStand(current.id, payload).subscribe({
+      this.foodService.updateStand(current.id, payload, activeEventId).subscribe({
         next: (updated) => {
           this.savingStand.set(false);
           this.selectedStand.set(updated);
-          this.showFeedback('success', `Cantina "${updated.name}" aggiornata con successo.`);
+          this.showFeedback('success', `Cantina "${updated.name}" aggiornata per l'edizione selezionata.`);
           this.loadStands(updated.id);
         },
         error: () => {
@@ -513,11 +669,32 @@ export class AdminStand implements OnInit {
     });
   }
 
-  // --- Gestione Piatti, Parole Chiave e Quantità ---
+  // --- Gestione Piatti, Parole Chiave, Riutilizzo Storico e Quantità ---
+
+  applyHistoricalItemTemplate(historicalItemId: string) {
+    this.selectedHistoricalItemId.set(historicalItemId);
+    const found = this.historicalCatalog().find((m) => m.id === historicalItemId);
+    if (!found) {
+      this.selectedCanonicalItemId.set(undefined);
+      return;
+    }
+    this.editingMenuItemId.set(null);
+    this.selectedCanonicalItemId.set(found.canonicalItemId || found.id);
+    this.menuItemForm.patchValue({
+      name: found.name,
+      kind: found.kind,
+      availablePlates: 50,
+      descriptionIt: found.description?.it || '',
+      descriptionEn: found.description?.en || '',
+      keywordsText: (found.keywords || []).join(', '),
+    });
+  }
 
   startEditMenuItem(item: MenuItem) {
     if (!this.canEditSelectedStand()) return;
     this.editingMenuItemId.set(item.id);
+    this.selectedHistoricalItemId.set('');
+    this.selectedCanonicalItemId.set(item.canonicalItemId);
     this.menuItemForm.patchValue({
       name: item.name,
       kind: item.kind,
@@ -530,6 +707,8 @@ export class AdminStand implements OnInit {
 
   resetMenuItemForm() {
     this.editingMenuItemId.set(null);
+    this.selectedHistoricalItemId.set('');
+    this.selectedCanonicalItemId.set(undefined);
     this.menuItemForm.reset({
       name: '',
       kind: 'FOOD',
@@ -546,8 +725,11 @@ export class AdminStand implements OnInit {
 
     const raw = this.menuItemForm.getRawValue();
     const keywords = this.parseKeywords(raw.keywordsText);
+    const activeEventId = this.selectedEventId();
 
     const payload: MenuItemCreate = {
+      eventId: activeEventId,
+      canonicalItemId: this.selectedCanonicalItemId(),
       name: raw.name,
       kind: raw.kind,
       availablePlates: Math.max(0, Number(raw.availablePlates)),
@@ -575,10 +757,10 @@ export class AdminStand implements OnInit {
         },
       });
     } else {
-      this.foodService.addMenuItem(current.id, payload).subscribe({
+      this.foodService.addMenuItem(current.id, payload, activeEventId).subscribe({
         next: () => {
           this.savingMenuItem.set(false);
-          this.showFeedback('success', `Piatto "${payload.name}" aggiunto al menu.`);
+          this.showFeedback('success', `Piatto "${payload.name}" aggiunto al menu dell'edizione.`);
           this.resetMenuItemForm();
           this.selectStand(current.id);
         },
@@ -602,6 +784,8 @@ export class AdminStand implements OnInit {
 
     const safeQty = Math.max(0, Math.floor(Number(quantity) || 0));
     const payload: MenuItemCreate = {
+      eventId: item.eventId || this.selectedEventId(),
+      canonicalItemId: item.canonicalItemId,
       name: item.name,
       kind: item.kind,
       availablePlates: safeQty,
@@ -625,7 +809,7 @@ export class AdminStand implements OnInit {
   deleteMenuItem(item: MenuItem) {
     const current = this.selectedStand();
     if (!current || !this.canEditSelectedStand()) return;
-    if (!confirm(`Vuoi rimuovere "${item.name}" dal menu della cantina?`)) return;
+    if (!confirm(`Vuoi rimuovere "${item.name}" dal menu di questa edizione?`)) return;
 
     this.foodService.deleteMenuItem(current.id, item.id).subscribe({
       next: () => {
