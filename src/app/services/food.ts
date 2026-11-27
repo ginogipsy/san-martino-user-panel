@@ -132,6 +132,8 @@ export interface OwnerCreate {
 export interface MenuItem {
   id: string;
   standId: string;
+  eventId?: string;
+  canonicalItemId?: string;
   name: string;
   description: LocalizedText;
   availablePlates: number;
@@ -141,6 +143,8 @@ export interface MenuItem {
 
 export interface StandSummary {
   id: string;
+  eventId?: string;
+  participatingEventIds?: string[];
   number: number;
   name: string;
   description: LocalizedText;
@@ -160,6 +164,7 @@ export interface StandDetail extends StandSummary {
 }
 
 export interface StandCreate {
+  eventId?: string;
   number: number;
   name: string;
   description: LocalizedText;
@@ -171,6 +176,8 @@ export interface StandCreate {
 export type StandUpdate = StandCreate;
 
 export interface MenuItemCreate {
+  eventId?: string;
+  canonicalItemId?: string;
   name: string;
   description: LocalizedText;
   availablePlates: number;
@@ -191,36 +198,69 @@ export class Food {
     return this.http.get<{ googleMapsApiKey?: string }>('/api/config/public');
   }
 
-  listStands(): Observable<StandSummary[]> {
-    return this.http.get<StandSummary[]>(this.STANDS_URL);
+  listStands(eventId?: string, includeNonParticipating = false): Observable<StandSummary[]> {
+    let params = new HttpParams();
+    if (eventId) {
+      params = params.set('eventId', eventId);
+    }
+    if (includeNonParticipating) {
+      params = params.set('includeNonParticipating', 'true');
+    }
+    return this.http.get<StandSummary[]>(this.STANDS_URL, { params });
   }
 
-  getStand(standId: string): Observable<StandDetail> {
-    return this.http.get<StandDetail>(`${this.STANDS_URL}/${standId}`);
+  getStand(standId: string, eventId?: string): Observable<StandDetail> {
+    let params = new HttpParams();
+    if (eventId) {
+      params = params.set('eventId', eventId);
+    }
+    return this.http.get<StandDetail>(`${this.STANDS_URL}/${standId}`, { params });
   }
 
   createStand(stand: StandCreate): Observable<StandDetail> {
     return this.http.post<StandDetail>(this.STANDS_URL, stand);
   }
 
-  updateStand(standId: string, stand: StandUpdate): Observable<StandDetail> {
-    return this.http.put<StandDetail>(`${this.STANDS_URL}/${standId}`, stand);
+  updateStand(standId: string, stand: StandUpdate, eventId?: string): Observable<StandDetail> {
+    let params = new HttpParams();
+    if (eventId) {
+      params = params.set('eventId', eventId);
+    }
+    return this.http.put<StandDetail>(`${this.STANDS_URL}/${standId}`, stand, { params });
+  }
+
+  upsertStandEditionParticipation(standId: string, eventId: string, stand: StandUpdate): Observable<StandDetail> {
+    return this.http.put<StandDetail>(`${this.STANDS_URL}/${standId}/editions/${eventId}`, stand);
+  }
+
+  deleteStandEditionParticipation(standId: string, eventId: string): Observable<void> {
+    return this.http.delete<void>(`${this.STANDS_URL}/${standId}/editions/${eventId}`);
   }
 
   deleteStand(standId: string): Observable<void> {
     return this.http.delete<void>(`${this.STANDS_URL}/${standId}`);
   }
 
-  listMenuItems(standId: string, kind?: MenuKind): Observable<MenuItem[]> {
+  listMenuItems(standId: string, kind?: MenuKind, eventId?: string, allEditions = false): Observable<MenuItem[]> {
     let params = new HttpParams();
     if (kind) {
       params = params.set('kind', kind);
     }
+    if (eventId) {
+      params = params.set('eventId', eventId);
+    }
+    if (allEditions) {
+      params = params.set('allEditions', 'true');
+    }
     return this.http.get<MenuItem[]>(`${this.STANDS_URL}/${standId}/menu-items`, { params });
   }
 
-  addMenuItem(standId: string, item: MenuItemCreate): Observable<MenuItem> {
-    return this.http.post<MenuItem>(`${this.STANDS_URL}/${standId}/menu-items`, item);
+  addMenuItem(standId: string, item: MenuItemCreate, eventId?: string): Observable<MenuItem> {
+    let params = new HttpParams();
+    if (eventId) {
+      params = params.set('eventId', eventId);
+    }
+    return this.http.post<MenuItem>(`${this.STANDS_URL}/${standId}/menu-items`, item, { params });
   }
 
   updateMenuItem(standId: string, itemId: string, item: MenuItemUpdate): Observable<MenuItem> {
