@@ -66,9 +66,9 @@ Sui branch di sviluppo (**`develop`**, **`feature/*`**, **`release/*`**), la pip
 
 ---
 
-## 🧪 Qualità del Codice (Qodana)
+## 🧪 Qualità del Codice
 
-Ogni commit ed ogni Pull Request viene analizzata automaticamente da **JetBrains Qodana**.
+Ogni commit ed ogni Pull Request viene analizzata automaticamente da TypeScript strict compiler & Angular AOT template check in `ci-cd.yml`.
 - Il report è consultabile nella tab **Checks** della Pull Request.
 - Assicuratevi che non vengano introdotti nuovi "Critical" o "High" issues prima del merge.
 

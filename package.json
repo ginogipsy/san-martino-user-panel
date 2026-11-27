@@ -1,6 +1,6 @@
 {
   "name": "san-martino-user-panel",
-  "version": "0.0.7",
+  "version": "1.0.1",
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
