@@ -10,6 +10,106 @@ export interface LocalizedText {
 
 export type MenuKind = 'FOOD' | 'DRINK';
 export type OwnerRole = 'PRIMARY' | 'SECONDARY';
+export type ReviewTargetType = 'STAND' | 'MENU_ITEM' | 'EVENT';
+export type ReviewStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+export type StandStaffRole = 'OWNER' | 'CASHIER' | 'KITCHEN' | 'DELIVERY' | 'VIEWER';
+export type KeypadStationRole = 'CASHIER' | 'KITCHEN' | 'DELIVERY';
+export type DeliveryLedState = 'OFF' | 'BLINKING' | 'SOLID';
+export type StandOrderStatus = 'IN_PROGRESS' | 'READY' | 'DELIVERED' | 'CANCELLED';
+
+export interface AccessibleKeypadStand {
+  standId: string;
+  standNumber: number;
+  standName: string;
+  permissions: StandStaffRole[];
+  activeOrdersCount: number;
+  currentServingOrderNumber: number;
+}
+
+export interface StandKeypadSlotView {
+  slotNumber: number;
+  menuItemId?: string | null;
+  menuItemName?: string | null;
+  kind?: MenuKind | null;
+  availablePlates: number;
+  pendingToCookCount: number;
+  currentDeliveryOrderRequiredCount: number;
+  currentDeliveryOrderCookedCount: number;
+  currentDeliveryOrderDeliveredCount: number;
+  kitchenLedOn: boolean;
+  deliveryLedState: DeliveryLedState;
+}
+
+export interface StandOrderItemView {
+  id: string;
+  slotNumber: number;
+  menuItemId?: string | null;
+  menuItemName: string;
+  kind: MenuKind;
+  orderedQuantity: number;
+  cookedQuantity: number;
+  deliveredQuantity: number;
+}
+
+export interface StandOrderView {
+  id: string;
+  standId: string;
+  orderNumber: number;
+  status: StandOrderStatus;
+  createdBy?: string | null;
+  createdAt: string;
+  readyAt?: string | null;
+  deliveredAt?: string | null;
+  items: StandOrderItemView[];
+}
+
+export interface StandStaffPermissionView {
+  id: string;
+  standId: string;
+  username: string;
+  permission: StandStaffRole;
+  grantedBy?: string | null;
+  createdAt: string;
+}
+
+export interface StandKeypadState {
+  standId: string;
+  standNumber: number;
+  standName: string;
+  deviceToken?: string | null;
+  nextOrderNumber: number;
+  lastIssuedOrderNumber: number;
+  oldestKitchenOrderNumber: number;
+  currentDeliveryOrderNumber: number;
+  lastDeliveredOrderNumber: number;
+  activeOrdersCount: number;
+  totalPendingKitchenPortions: number;
+  lastCashierSeenAt?: string | null;
+  lastKitchenSeenAt?: string | null;
+  lastDeliverySeenAt?: string | null;
+  userPermissions: StandStaffRole[];
+  slots: StandKeypadSlotView[];
+  activeOrders: StandOrderView[];
+  recentDeliveredOrders: StandOrderView[];
+  staffPermissions: StandStaffPermissionView[];
+}
+
+export interface FestivalReview {
+  id: string;
+  targetType: ReviewTargetType;
+  targetId: string;
+  standId?: string;
+  targetName?: string;
+  authorUsername: string;
+  rating: number;
+  comment?: string;
+  status: ReviewStatus;
+  moderatedBy?: string;
+  moderationNote?: string;
+  moderatedAt?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
 
 export interface Owner {
   id: string;
@@ -32,6 +132,8 @@ export interface OwnerCreate {
 export interface MenuItem {
   id: string;
   standId: string;
+  eventId?: string;
+  canonicalItemId?: string;
   name: string;
   description: LocalizedText;
   availablePlates: number;
@@ -41,6 +143,8 @@ export interface MenuItem {
 
 export interface StandSummary {
   id: string;
+  eventId?: string;
+  participatingEventIds?: string[];
   number: number;
   name: string;
   description: LocalizedText;
@@ -49,6 +153,9 @@ export interface StandSummary {
   longitude: number;
   createdAt?: string;
   updatedAt?: string;
+  activeOrdersCount?: number;
+  currentServingOrderNumber?: number;
+  estimatedWaitMinutes?: number;
 }
 
 export interface StandDetail extends StandSummary {
@@ -57,6 +164,7 @@ export interface StandDetail extends StandSummary {
 }
 
 export interface StandCreate {
+  eventId?: string;
   number: number;
   name: string;
   description: LocalizedText;
@@ -68,6 +176,8 @@ export interface StandCreate {
 export type StandUpdate = StandCreate;
 
 export interface MenuItemCreate {
+  eventId?: string;
+  canonicalItemId?: string;
   name: string;
   description: LocalizedText;
   availablePlates: number;
@@ -85,46 +195,76 @@ export class Food {
   private readonly STANDS_URL = environment.standsUrl;
 
   getPublicConfig(): Observable<{ googleMapsApiKey?: string }> {
-    return this.http.get<{ googleMapsApiKey?: string }>("/api/config/public");
+    return this.http.get<{ googleMapsApiKey?: string }>('/api/config/public');
   }
 
-  listStands(): Observable<StandSummary[]> {
-    return this.http.get<StandSummary[]>(this.STANDS_URL);
+  listStands(eventId?: string, includeNonParticipating = false): Observable<StandSummary[]> {
+    let params = new HttpParams();
+    if (eventId) {
+      params = params.set('eventId', eventId);
+    }
+    if (includeNonParticipating) {
+      params = params.set('includeNonParticipating', 'true');
+    }
+    return this.http.get<StandSummary[]>(this.STANDS_URL, { params });
   }
 
-  getStand(standId: string): Observable<StandDetail> {
-    return this.http.get<StandDetail>(`${this.STANDS_URL}/${standId}`);
+  getStand(standId: string, eventId?: string): Observable<StandDetail> {
+    let params = new HttpParams();
+    if (eventId) {
+      params = params.set('eventId', eventId);
+    }
+    return this.http.get<StandDetail>(`${this.STANDS_URL}/${standId}`, { params });
   }
 
   createStand(stand: StandCreate): Observable<StandDetail> {
     return this.http.post<StandDetail>(this.STANDS_URL, stand);
   }
 
-  updateStand(standId: string, stand: StandUpdate): Observable<StandDetail> {
-    return this.http.put<StandDetail>(`${this.STANDS_URL}/${standId}`, stand);
+  updateStand(standId: string, stand: StandUpdate, eventId?: string): Observable<StandDetail> {
+    let params = new HttpParams();
+    if (eventId) {
+      params = params.set('eventId', eventId);
+    }
+    return this.http.put<StandDetail>(`${this.STANDS_URL}/${standId}`, stand, { params });
+  }
+
+  upsertStandEditionParticipation(standId: string, eventId: string, stand: StandUpdate): Observable<StandDetail> {
+    return this.http.put<StandDetail>(`${this.STANDS_URL}/${standId}/editions/${eventId}`, stand);
+  }
+
+  deleteStandEditionParticipation(standId: string, eventId: string): Observable<void> {
+    return this.http.delete<void>(`${this.STANDS_URL}/${standId}/editions/${eventId}`);
   }
 
   deleteStand(standId: string): Observable<void> {
     return this.http.delete<void>(`${this.STANDS_URL}/${standId}`);
   }
 
-  listMenuItems(standId: string, kind?: MenuKind): Observable<MenuItem[]> {
+  listMenuItems(standId: string, kind?: MenuKind, eventId?: string, allEditions = false): Observable<MenuItem[]> {
     let params = new HttpParams();
     if (kind) {
       params = params.set('kind', kind);
     }
+    if (eventId) {
+      params = params.set('eventId', eventId);
+    }
+    if (allEditions) {
+      params = params.set('allEditions', 'true');
+    }
     return this.http.get<MenuItem[]>(`${this.STANDS_URL}/${standId}/menu-items`, { params });
   }
 
-  addMenuItem(standId: string, item: MenuItemCreate): Observable<MenuItem> {
-    return this.http.post<MenuItem>(`${this.STANDS_URL}/${standId}/menu-items`, item);
+  addMenuItem(standId: string, item: MenuItemCreate, eventId?: string): Observable<MenuItem> {
+    let params = new HttpParams();
+    if (eventId) {
+      params = params.set('eventId', eventId);
+    }
+    return this.http.post<MenuItem>(`${this.STANDS_URL}/${standId}/menu-items`, item, { params });
   }
 
   updateMenuItem(standId: string, itemId: string, item: MenuItemUpdate): Observable<MenuItem> {
-    return this.http.put<MenuItem>(
-      `${this.STANDS_URL}/${standId}/menu-items/${itemId}`,
-      item,
-    );
+    return this.http.put<MenuItem>(`${this.STANDS_URL}/${standId}/menu-items/${itemId}`, item);
   }
 
   deleteMenuItem(standId: string, itemId: string): Observable<void> {
@@ -141,6 +281,137 @@ export class Food {
 
   deleteOwner(standId: string, ownerId: string): Observable<void> {
     return this.http.delete<void>(`${this.STANDS_URL}/${standId}/owners/${ownerId}`);
+  }
+
+  listReviews(options?: {
+    targetType?: ReviewTargetType;
+    targetId?: string;
+    standId?: string;
+    status?: ReviewStatus;
+  }): Observable<FestivalReview[]> {
+    let params = new HttpParams();
+    if (options?.targetType) params = params.set('targetType', options.targetType);
+    if (options?.targetId) params = params.set('targetId', options.targetId);
+    if (options?.standId) params = params.set('standId', options.standId);
+    if (options?.status) params = params.set('status', options.status);
+    return this.http.get<FestivalReview[]>(`${this.STANDS_URL}/reviews`, { params });
+  }
+
+  moderateReview(
+    reviewId: string,
+    status: 'APPROVED' | 'REJECTED',
+    moderationNote?: string,
+  ): Observable<FestivalReview> {
+    return this.http.put<FestivalReview>(`${this.STANDS_URL}/reviews/${reviewId}/moderation`, {
+      status,
+      moderationNote: moderationNote?.trim() || undefined,
+    });
+  }
+
+  // ===========================================================================
+  // PULSANTIERA IoT 10 SLOT, 3 POSTAZIONI (CASSA/CUCINA/CONSEGNA) & PERMESSI
+  // ===========================================================================
+  listAccessibleKeypadStands(): Observable<AccessibleKeypadStand[]> {
+    return this.http.get<AccessibleKeypadStand[]>(`${this.STANDS_URL}/keypad/accessible`);
+  }
+
+  getStandKeypadState(standId: string, station?: KeypadStationRole): Observable<StandKeypadState> {
+    let params = new HttpParams();
+    if (station) {
+      params = params.set('station', station);
+    }
+    return this.http.get<StandKeypadState>(`${this.STANDS_URL}/${standId}/keypad/state`, { params });
+  }
+
+  updateStandKeypadSlots(
+    standId: string,
+    slots: { slotNumber: number; menuItemId?: string | null }[],
+    regenerateDeviceToken = false,
+  ): Observable<StandKeypadState> {
+    return this.http.put<StandKeypadState>(`${this.STANDS_URL}/${standId}/keypad/slots`, {
+      slots,
+      regenerateDeviceToken,
+    });
+  }
+
+  addStandStaffPermission(
+    standId: string,
+    username: string,
+    permission: StandStaffRole,
+  ): Observable<StandKeypadState> {
+    return this.http.post<StandKeypadState>(`${this.STANDS_URL}/${standId}/keypad/permissions`, {
+      username: username.trim(),
+      permission,
+    });
+  }
+
+  deleteStandStaffPermission(standId: string, permissionId: string): Observable<StandKeypadState> {
+    return this.http.delete<StandKeypadState>(
+      `${this.STANDS_URL}/${standId}/keypad/permissions/${permissionId}`,
+    );
+  }
+
+  createStandKeypadOrder(
+    standId: string,
+    items: { slotNumber: number; quantity: number }[],
+  ): Observable<StandKeypadState> {
+    return this.http.post<StandKeypadState>(`${this.STANDS_URL}/${standId}/keypad/orders`, {
+      items,
+    });
+  }
+
+  pressKitchenKeypadSlot(
+    standId: string,
+    slotNumber: number,
+    quantity = 1,
+  ): Observable<StandKeypadState> {
+    return this.http.post<StandKeypadState>(`${this.STANDS_URL}/${standId}/keypad/kitchen/press`, {
+      slotNumber,
+      quantity,
+    });
+  }
+
+  pressDeliveryKeypadSlot(
+    standId: string,
+    slotNumber: number,
+    quantity = 1,
+  ): Observable<StandKeypadState> {
+    return this.http.post<StandKeypadState>(`${this.STANDS_URL}/${standId}/keypad/delivery/press`, {
+      slotNumber,
+      quantity,
+    });
+  }
+
+  resetStandKeypadCounter(standId: string): Observable<StandKeypadState> {
+    return this.http.post<StandKeypadState>(
+      `${this.STANDS_URL}/${standId}/keypad/orders/reset-counter`,
+      {},
+    );
+  }
+
+  cancelStandKeypadOrder(standId: string, orderId: string): Observable<StandKeypadState> {
+    return this.http.post<StandKeypadState>(
+      `${this.STANDS_URL}/${standId}/keypad/orders/${orderId}/cancel`,
+      {},
+    );
+  }
+
+  completeStandKeypadOrder(standId: string, orderId: string): Observable<StandKeypadState> {
+    return this.http.post<StandKeypadState>(
+      `${this.STANDS_URL}/${standId}/keypad/orders/${orderId}/complete`,
+      {},
+    );
+  }
+
+  lookupUsers(search = '', limit = 25): Observable<{ username: string; email: string; displayName: string }[]> {
+    let params = new HttpParams().set('limit', String(limit));
+    if (search.trim()) {
+      params = params.set('search', search.trim());
+    }
+    return this.http.get<{ username: string; email: string; displayName: string }[]>(
+      `${environment.authUrl}/users/lookup`,
+      { params },
+    );
   }
 
   /**

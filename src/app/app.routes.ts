@@ -14,6 +14,11 @@ export const routes: Routes = [
     canActivate: [authGuard],
   },
   {
+    path: 'pulsantiera',
+    loadComponent: () => import('./components/keypad/keypad').then((m) => m.Keypad),
+    canActivate: [authGuard],
+  },
+  {
     path: 'admin/events',
     component: AdminEvents,
     canActivate: [adminGuard],

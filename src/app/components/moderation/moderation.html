@@ -6,6 +6,9 @@
       <h1>Moderazione Recensioni</h1>
       <p class="subtitle">Gestione e approvazione delle recensioni inviate dall'app mobile per eventi, cantine e piatti.</p>
     </div>
+    <button type="button" class="refresh-btn" (click)="loadReviews()" [disabled]="loading()">
+      ↻ Aggiorna
+    </button>
   </header>
 
   <div class="filters-bar">
@@ -26,12 +29,94 @@
     </div>
   </div>
 
-  <div class="empty-card">
-    <div class="empty-icon">🛡️</div>
-    <h2>Area Moderazione Pronta</h2>
-    <p>
-      Nessuna recensione in coda per i filtri selezionati (<strong>{{ selectedFilter() }}</strong> / <strong>{{ selectedTargetType() }}</strong>).
-      Questa sezione verrà alimentata automaticamente con l'attivazione del modulo recensioni dell'app mobile (Step 4).
-    </p>
-  </div>
+  @if (errorMessage()) {
+    <div class="error-banner">{{ errorMessage() }}</div>
+  }
+
+  @if (loading()) {
+    <div class="empty-card">
+      <p>Caricamento recensioni in corso…</p>
+    </div>
+  } @else if (reviews().length === 0) {
+    <div class="empty-card">
+      <div class="empty-icon">🛡️</div>
+      <h2>Nessuna recensione trovata</h2>
+      <p>
+        Nessuna recensione presente per i filtri selezionati (<strong>{{ selectedFilter() }}</strong> / <strong>{{ selectedTargetType() }}</strong>).
+      </p>
+    </div>
+  } @else {
+    <div class="reviews-grid">
+      @for (review of reviews(); track review.id) {
+        <article class="review-card">
+          <div class="review-top">
+            <div>
+              <span class="badge category-badge">{{ targetTypeLabel(review.targetType) }}</span>
+              <span class="badge"
+                [class.status-pending]="review.status === 'PENDING'"
+                [class.status-approved]="review.status === 'APPROVED'"
+                [class.status-rejected]="review.status === 'REJECTED'">
+                {{ statusLabel(review.status) }}
+              </span>
+              <h3 class="target-title">{{ review.targetName || review.targetId }}</h3>
+            </div>
+            <div class="stars" aria-label="Valutazione">
+              @for (filled of starsArray(review.rating); track $index) {
+                <span [class.star-filled]="filled === 1" [class.star-empty]="filled === 0">★</span>
+              }
+              <span class="rating-number">{{ review.rating }}/5</span>
+            </div>
+          </div>
+
+          <div class="review-meta">
+            <span>Autore: <strong>@{{ review.authorUsername }}</strong></span>
+            <span>Inviata il {{ review.createdAt | date:'dd/MM/yyyy HH:mm' }}</span>
+          </div>
+
+          @if (review.comment) {
+            <p class="review-comment">“{{ review.comment }}”</p>
+          } @else {
+            <p class="review-comment muted">Nessun commento testuale allegato (solo valutazione a stelle).</p>
+          }
+
+          @if (review.moderatedBy) {
+            <div class="moderation-audit">
+              Moderata da <strong>{{ review.moderatedBy }}</strong>
+              @if (review.moderatedAt) {
+                il {{ review.moderatedAt | date:'dd/MM/yyyy HH:mm' }}
+              }
+              @if (review.moderationNote) {
+                — Nota: <em>{{ review.moderationNote }}</em>
+              }
+            </div>
+          }
+
+          <div class="moderation-actions">
+            <input
+              type="text"
+              class="note-input"
+              placeholder="Nota di moderazione (opzionale)…"
+              [(ngModel)]="noteDrafts[review.id]"
+            />
+            <div class="action-buttons">
+              <button
+                type="button"
+                class="btn-approve"
+                [disabled]="moderatingId() === review.id || review.status === 'APPROVED'"
+                (click)="moderate(review, 'APPROVED')">
+                ✓ Approva
+              </button>
+              <button
+                type="button"
+                class="btn-reject"
+                [disabled]="moderatingId() === review.id || review.status === 'REJECTED'"
+                (click)="moderate(review, 'REJECTED')">
+                ✕ Rifiuta
+              </button>
+            </div>
+          </div>
+        </article>
+      }
+    </div>
+  }
 </div>

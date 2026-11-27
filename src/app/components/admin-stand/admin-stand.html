@@ -3,9 +3,9 @@
 <div class="page-wrapper">
   <header class="page-header">
     <div>
-      <h1>Gestione Cantine, Menu e Quantità</h1>
+      <h1>Gestione Cantine, Edizioni Storiche, Menu e Quantità</h1>
       <p class="subtitle">
-        Consulta le cantine del percorso, posizionale su Google Maps e gestisci piatti, parole chiave e scorte.
+        Seleziona l'edizione della festa, gestisci la partecipazione della cantina a più eventi e configura menu e scorte per anno (con continuità storica delle recensioni sui piatti e vini ricorrenti).
       </p>
     </div>
     @if (authService.isAdmin()) {
@@ -14,6 +14,38 @@
       </button>
     }
   </header>
+
+  <!-- Barra Selezione Edizione / Evento -->
+  <section class="edition-selector-bar">
+    <div class="edition-selector-info">
+      <span class="edition-badge-icon">📅</span>
+      <div>
+        <strong>Edizione Selezionata:</strong>
+        @if (selectedEvent(); as ev) {
+          <span class="edition-active-name">{{ ev.name }}</span>
+          <span class="edition-status-pill" [class.past]="ev.status === 'PAST'">
+            {{ ev.status === 'UPCOMING' ? 'In Programma / Attiva' : 'Archivio Storico' }}
+          </span>
+        } @else {
+          <span class="edition-active-name">Edizione 2026</span>
+        }
+      </div>
+    </div>
+
+    <div class="edition-pills">
+      @for (ev of events(); track ev.id) {
+        <button
+          type="button"
+          class="edition-pill-btn"
+          [class.active]="selectedEventId() === ev.id"
+          (click)="selectEvent(ev.id)"
+        >
+          <span>{{ ev.startDate | slice:0:4 }} — {{ ev.name }}</span>
+          <small class="pill-tag">{{ ev.status === 'UPCOMING' ? 'LIVE' : 'STORICO' }}</small>
+        </button>
+      }
+    </div>
+  </section>
 
   @if (feedbackMessage(); as msg) {
     <div class="alert" [class.alert-success]="msg.type === 'success'" [class.alert-error]="msg.type === 'error'">
@@ -39,12 +71,20 @@
               type="button"
               class="stand-item"
               [class.active]="!isCreatingStand() && selectedStand()?.id === stand.id"
+              [class.non-participating]="!isStandParticipatingInSelectedEvent(stand)"
               (click)="selectStand(stand.id)"
             >
               <span class="stand-number">#{{ stand.number }}</span>
               <div class="stand-meta">
                 <strong>{{ stand.name }}</strong>
-                <small>Dal {{ stand.firstParticipationYear }}</small>
+                <small>
+                  Dal {{ stand.firstParticipationYear }}
+                  @if (isStandParticipatingInSelectedEvent(stand)) {
+                    · <span class="status-dot-enrolled">Iscritta ({{ stand.participatingEventIds?.length || 1 }} ed.)</span>
+                  } @else {
+                    · <span class="status-dot-missing">Non iscritta in questa ed.</span>
+                  }
+                </small>
               </div>
             </button>
           }
@@ -56,7 +96,41 @@
     <main class="stand-main">
       @if (!canEditSelectedStand() && !isCreatingStand() && selectedStand()) {
         <div class="readonly-banner">
-          <span>🔒 <strong>Modalità Sola Lettura:</strong> Puoi consultare la scheda, la posizione su Google Maps e il menu di questa cantina, ma puoi modificare solo la cantina associata al tuo account (<strong>{{ authService.getUsername() }}</strong>).</span>
+          <span>🔒 <strong>Modalità Sola Lettura:</strong> Puoi consultare la scheda, la posizione su Google Maps e il menu storico di questa cantina, ma puoi modificare solo la cantina associata al tuo account (<strong>{{ authService.getUsername() }}</strong>).</span>
+        </div>
+      }
+
+      @if (!isCreatingStand() && selectedStand(); as s) {
+        <div class="participation-banner" [class.not-enrolled]="!isSelectedStandParticipatingInCurrentEvent()">
+          <div class="participation-banner-text">
+            @if (isSelectedStandParticipatingInCurrentEvent()) {
+              <span>✅ <strong>{{ s.name }}</strong> partecipa all'edizione selezionata (totale edizioni partecipate: <strong>{{ s.participatingEventIds?.length || 1 }}</strong>). Le recensioni della cantina e dei piatti/vini ricorrenti si tramandano automaticamente tra le edizioni.</span>
+            } @else {
+              <span>⚠️ <strong>{{ s.name }}</strong> non risulta ancora iscritta a questa edizione della festa.</span>
+            }
+          </div>
+          <div class="participation-banner-actions">
+            @if (!isSelectedStandParticipatingInCurrentEvent() && canEditSelectedStand()) {
+              <button
+                type="button"
+                class="btn-enroll-edition"
+                [disabled]="savingStand()"
+                (click)="enrollStandInSelectedEvent()"
+              >
+                + Iscrivi Cantina a questa Edizione
+              </button>
+            }
+            @if (isSelectedStandParticipatingInCurrentEvent() && authService.isAdmin() && (s.participatingEventIds?.length || 0) > 1) {
+              <button
+                type="button"
+                class="btn-remove-edition"
+                [disabled]="savingStand()"
+                (click)="removeStandFromSelectedEvent()"
+              >
+                Rimuovi da questa Edizione
+              </button>
+            }
+          </div>
         </div>
       }
 
@@ -88,22 +162,22 @@
         <form [formGroup]="standForm" (ngSubmit)="saveStand()">
           <div class="form-row-2">
             <div class="form-group">
-              <label>Numero Cantina</label>
+              <label>Numero Cantina (nell'Edizione)</label>
               <input type="number" formControlName="number" min="1" max="999" />
             </div>
             <div class="form-group">
-              <label>Nome Cantina</label>
+              <label>Nome Storico Cantina</label>
               <input type="text" formControlName="name" placeholder="Es. Il tartufo del Tobia" />
             </div>
           </div>
 
           <div class="form-row-2">
             <div class="form-group">
-              <label>Descrizione (IT)</label>
+              <label>Descrizione nell'Edizione (IT)</label>
               <textarea formControlName="descriptionIt" rows="2" placeholder="Descrizione in italiano"></textarea>
             </div>
             <div class="form-group">
-              <label>Descrizione (EN)</label>
+              <label>Descrizione nell'Edizione (EN)</label>
               <textarea formControlName="descriptionEn" rows="2" placeholder="English description"></textarea>
             </div>
           </div>
@@ -125,123 +199,140 @@
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  🗺️ Vedi su Google Maps ↗
+                  🗺️ Apri in Google Maps
                 </a>
-                @if (canEditSelectedStand()) {
-                  <button
-                    type="button"
-                    class="btn-toggle-map"
-                    (click)="toggleLocationEditor()"
-                  >
-                    {{ showLocationEditor() ? '✕ Chiudi Mappa' : '📍 Modifica Posizione sulla Mappa' }}
-                  </button>
+                <button
+                  type="button"
+                  class="btn-toggle-map"
+                  (click)="toggleLocationEditor()"
+                >
+                  {{ showLocationEditor() ? '✖ Chiudi Mappa' : canEditSelectedStand() ? '📍 Modifica Posizione' : '🗺️ Mostra Mappa' }}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Box Mappa Google Maps (caricato on-demand solo quando richiesto) -->
+          @if (showLocationEditor()) {
+            <div class="map-section">
+              <div class="map-header">
+                <div>
+                  <span class="map-title">📍 Posizione su Google Maps (Arce, FR)</span>
+                  <p class="map-hint">
+                    @if (canEditSelectedStand()) {
+                      Clicca sulla mappa, trascina il segnaposto oppure cerca una via per aggiornare le coordinate GPS.
+                    } @else {
+                      Visualizzazione in sola lettura della posizione della cantina.
+                    }
+                  </p>
+                </div>
+
+                @if (googleMapsReady()) {
+                  <div class="map-search-box">
+                    <input
+                      type="text"
+                      [ngModel]="mapSearchQuery()"
+                      (ngModelChange)="mapSearchQuery.set($event)"
+                      [ngModelOptions]="{ standalone: true }"
+                      placeholder="Cerca via o piazza ad Arce..."
+                      (keyup.enter)="searchAddressOnMap()"
+                    />
+                    <button
+                      type="button"
+                      class="btn-map-search"
+                      [disabled]="searchingAddress()"
+                      (click)="searchAddressOnMap()"
+                    >
+                      {{ searchingAddress() ? '...' : 'Cerca' }}
+                    </button>
+                  </div>
                 }
               </div>
-            </div>
-          </div>
 
-          <!-- Sezione Google Maps (caricata solo su richiesta per azzerare consumi API) -->
-          @if (showLocationEditor()) {
-          <div class="map-section">
-            <div class="map-header">
-              <div>
-                <label class="map-title">Google Maps — Posizione della Cantina (Arce)</label>
-                <p class="map-hint">
-                  @if (canEditSelectedStand()) {
-                    Clicca sulla mappa o trascina il pin rosso per aggiornare le coordinate della cantina.
-                  } @else {
-                    Posizione geografica della cantina lungo il percorso.
-                  }
-                </p>
-              </div>
-
-              @if (googleMapsReady() && canEditSelectedStand()) {
-                <div class="map-search-box">
-                  <input
-                    type="text"
-                    [ngModel]="mapSearchQuery()"
-                    [ngModelOptions]="{ standalone: true }"
-                    (ngModelChange)="mapSearchQuery.set($event)"
-                    (keydown.enter)="$event.preventDefault(); searchAddressOnMap()"
-                    placeholder="Cerca via o piazza ad Arce..."
-                  />
-                  <button
-                    type="button"
-                    class="btn-map-search"
-                    [disabled]="searchingAddress()"
-                    (click)="searchAddressOnMap()"
+              @if (googleMapsReady()) {
+                <div class="stand-map-canvas">
+                  <google-map
+                    height="320px"
+                    width="100%"
+                    [center]="mapCenter()"
+                    [zoom]="mapZoom()"
+                    [options]="mapOptions"
+                    (mapClick)="onGoogleMapClick($event)"
                   >
-                    {{ searchingAddress() ? 'Ricerca...' : 'Cerca' }}
-                  </button>
+                    <map-marker
+                      [position]="markerPosition()"
+                      [options]="markerOptions()"
+                      (mapDragend)="onGoogleMarkerDragEnd($event)"
+                    ></map-marker>
+                  </google-map>
+                </div>
+              } @else {
+                <div class="gmaps-key-prompt">
+                  @if (googleMapsError(); as errMsg) {
+                    <p><strong>⚠️ {{ errMsg }}</strong></p>
+                  }
+                  <p>
+                    Per visualizzare la mappa interattiva Google Maps, inserisci una <strong>Google Maps JavaScript API Key</strong> valida (verrà salvata nel browser):
+                  </p>
+                  <div class="gmaps-key-row">
+                    <input
+                      type="text"
+                      [ngModel]="apiKeyInput()"
+                      (ngModelChange)="apiKeyInput.set($event)"
+                      [ngModelOptions]="{ standalone: true }"
+                      placeholder="AIzaSy..."
+                    />
+                    <button type="button" class="btn-map-search" (click)="saveGoogleMapsApiKey()">
+                      Attiva Google Maps
+                    </button>
+                  </div>
                 </div>
               }
-            </div>
 
-            @if (googleMapsError(); as err) {
-              <div class="alert alert-error" style="margin-bottom: 12px;">
-                {{ err }}
-              </div>
-            }
-
-            @if (!googleMapsReady()) {
-              <div class="gmaps-key-prompt">
-                <p>
-                  <strong>🔑 Configura la tua Google Maps API Key</strong><br />
-                  Incolla qui sotto la chiave API creata su Google Cloud Console (oppure salvala in <code>src/environments/environment.ts</code> alla voce <code>googleMapsApiKey</code>) per attivare Google Maps interattiva.
-                </p>
-                <div class="gmaps-key-row">
+              <div class="form-row-2" style="margin-top: 12px;">
+                <div class="form-group">
+                  <label>Latitudine</label>
                   <input
-                    type="text"
-                    [ngModel]="apiKeyInput()"
-                    [ngModelOptions]="{ standalone: true }"
-                    (ngModelChange)="apiKeyInput.set($event)"
-                    placeholder="AIzaSy..."
+                    type="number"
+                    step="0.00001"
+                    formControlName="latitude"
+                    (change)="setMapCoords(standForm.value.latitude, standForm.value.longitude)"
                   />
-                  <button type="button" class="btn-map-search" (click)="saveGoogleMapsApiKey()">
-                    Attiva Google Maps
-                  </button>
+                </div>
+                <div class="form-group">
+                  <label>Longitudine</label>
+                  <input
+                    type="number"
+                    step="0.00001"
+                    formControlName="longitude"
+                    (change)="setMapCoords(standForm.value.latitude, standForm.value.longitude)"
+                  />
                 </div>
               </div>
-            } @else {
-              <div class="stand-map-canvas">
-                <google-map
-                  height="320px"
-                  width="100%"
-                  [center]="mapCenter()"
-                  [zoom]="mapZoom()"
-                  [options]="mapOptions"
-                  (mapClick)="onGoogleMapClick($event)"
-                >
-                  <map-marker
-                    [position]="markerPosition()"
-                    [options]="markerOptions()"
-                    (mapDragend)="onGoogleMarkerDragEnd($event)"
-                  ></map-marker>
-                </google-map>
-              </div>
-            }
-          </div>
+            </div>
           }
 
           @if (canEditSelectedStand()) {
-            <button type="submit" class="btn-primary" [disabled]="standForm.invalid || savingStand()">
-              {{ savingStand() ? 'Salvataggio...' : isCreatingStand() ? 'Crea Cantina' : 'Salva Anagrafica Cantina' }}
-            </button>
+            <div class="form-actions">
+              <button type="submit" class="btn-primary" [disabled]="standForm.invalid || savingStand()">
+                {{ savingStand() ? 'Salvataggio...' : isCreatingStand() ? 'Crea Cantina' : 'Salva Modifiche Edizione' }}
+              </button>
+            </div>
           }
         </form>
 
         <!-- Gestori / Proprietari della Cantina -->
-        @if (!isCreatingStand() && selectedStand(); as currentStand) {
+        @if (!isCreatingStand() && selectedStand(); as stand) {
           <div class="owners-section">
             <div class="owners-header">
-              <h4>👥 Gestori Associati alla Cantina</h4>
+              <h4>👤 Gestori Associati alla Cantina ({{ stand.owners.length }})</h4>
               <span class="owners-subtitle">
-                Gli utenti con ruolo <code>ROLE_STAND_OWNER</code> il cui username o email compare qui possono modificare questa cantina.
+                Gli utenti con ruolo <code>ROLE_STAND_OWNER</code> il cui username o email compare in questo elenco possono gestire questa cantina.
               </span>
             </div>
 
             <div class="owners-chips">
-              @for (owner of currentStand.owners; track owner.id) {
+              @for (owner of stand.owners; track owner.id) {
                 <div class="owner-chip">
                   <span class="owner-name">
                     <strong>{{ owner.firstName }} {{ owner.lastName }}</strong>
@@ -261,8 +352,6 @@
                     </button>
                   }
                 </div>
-              } @empty {
-                <span class="muted">Nessun gestore associato.</span>
               }
             </div>
 
@@ -284,17 +373,19 @@
         }
       </section>
 
-      <!-- Card 2: Menu, Parole Chiave e Scorte -->
+      <!-- Card 2: Menu, Parole Chiave e Scorte per l'Edizione Selezionata -->
       @if (!isCreatingStand() && selectedStand(); as stand) {
         <section class="card">
           <div class="card-header">
             <div>
-              <h2>🍽️ Menu, Parole Chiave e Scorte — {{ stand.name }} ({{ stand.menuItems.length }} voci)</h2>
+              <h2>
+                🍽️ Menu dell'Edizione — {{ stand.name }} ({{ stand.menuItems.length }} voci)
+              </h2>
               <p class="card-subtitle">
                 @if (canEditSelectedStand()) {
-                  Aggiorna le quantità in tempo reale e definisci le parole chiave (es. <em>pasta, primo, sugo, guanciale</em>) per la ricerca intelligente.
+                  Gestisci i piatti e i vini proposti in questa edizione. Se riproponi un piatto o un vino già servito in edizioni precedenti, le sue recensioni storiche vengono mantenute automaticamente.
                 } @else {
-                  Elenco dei piatti, parole chiave e porzioni disponibili in tempo reale.
+                  Elenco dei piatti, vini, parole chiave e porzioni relativi all'edizione selezionata.
                 }
               </p>
             </div>
@@ -302,7 +393,7 @@
 
           @if (stand.menuItems.length === 0) {
             <div class="empty-menu">
-              Nessun piatto o bevanda ancora inserito per questa cantina.
+              Nessun piatto o bevanda ancora inserito per questa cantina nell'edizione selezionata.
             </div>
           } @else {
             <div class="menu-items-list">
@@ -374,7 +465,7 @@
             <div class="menu-form-box">
               <div class="menu-form-header">
                 <h3>
-                  {{ editingMenuItemId() ? '✏️ Modifica Piatto / Bevanda' : '➕ Aggiungi Nuovo Piatto o Bevanda' }}
+                  {{ editingMenuItemId() ? '✏️ Modifica Piatto / Bevanda' : '➕ Aggiungi Piatto o Vino a questa Edizione' }}
                 </h3>
                 @if (editingMenuItemId()) {
                   <button type="button" class="btn-cancel" (click)="resetMenuItemForm()">
@@ -382,6 +473,24 @@
                   </button>
                 }
               </div>
+
+              @if (!editingMenuItemId() && reusableHistoricalItems().length > 0) {
+                <div class="historical-reuse-box">
+                  <label>📜 Ripropone un Piatto o Vino Storico della Cantina (continuità recensioni tra edizioni):</label>
+                  <select
+                    [ngModel]="selectedHistoricalItemId()"
+                    (ngModelChange)="applyHistoricalItemTemplate($event)"
+                    [ngModelOptions]="{ standalone: true }"
+                  >
+                    <option value="">— Nuovo piatto/vino oppure seleziona dallo storico della cantina —</option>
+                    @for (hist of reusableHistoricalItems(); track hist.id) {
+                      <option [value]="hist.id">
+                        {{ hist.kind === 'FOOD' ? '🍽️' : '🍷' }} {{ hist.name }} ({{ hist.description.it }})
+                      </option>
+                    }
+                  </select>
+                </div>
+              }
 
               <form [formGroup]="menuItemForm" (ngSubmit)="saveMenuItem()">
                 <div class="form-row-3">
@@ -426,7 +535,7 @@
                 </div>
 
                 <button type="submit" class="btn-success" [disabled]="menuItemForm.invalid || savingMenuItem()">
-                  {{ savingMenuItem() ? 'Salvataggio...' : editingMenuItemId() ? 'Aggiorna Piatto' : 'Aggiungi al Menu' }}
+                  {{ savingMenuItem() ? 'Salvataggio...' : editingMenuItemId() ? 'Aggiorna Piatto' : 'Aggiungi al Menu dell\'Edizione' }}
                 </button>
               </form>
             </div>

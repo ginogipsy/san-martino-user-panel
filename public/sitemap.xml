@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Il sito ha una sola pagina: nessun router Angular, nessuna rotta secondaria.
+  <lastmod> e' volutamente omesso: sarebbe una data fissa da aggiornare a mano a
+  ogni deploy e Google tiene conto del campo solo se lo trova accurato nel tempo.
+  Se in futuro l'app acquisisce delle rotte, ogni rotta va aggiunta qui.
+-->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <!--<loc>https://francescogrossi.it/</loc>-->
+    <loc>http://localhost:4200/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>1.0</priority>
+  </url>
+</urlset>
