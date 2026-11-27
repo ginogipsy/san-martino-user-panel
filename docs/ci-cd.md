@@ -16,7 +16,6 @@
 | `ci-cd.yml` | Build & Test | Push su branch/tag, PR |
 | `release.yml` | Tag & GitHub Release | Push su `master` |
 | `deploy.yml` | Pubblicazione Docker Image | Chiamato da `ci-cd.yml` |
-| `qodana_code_quality.yml` | Analisi statica della qualità del codice | Push su branch/tag, PR |
 
 ## Allineamento a git flow
 
